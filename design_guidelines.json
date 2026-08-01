@@ -1,0 +1,149 @@
+{
+  "theme": "Modern Gamified Family Command Center",
+  "description": "A cross between a modern SaaS dashboard (Microsoft Fluent inspired) and a family-friendly mission system. Professional enough for adults (Admins) but highly engaging, gamified, and rewarding for kids and teens. Clean light-theme layouts, frosted glass layering, rounded geometries, and bright gamification accents.",
+  "app_type": "hybrid_fullstack",
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "Nunito",
+    "font_strategy": "Outfit provides a crisp, modern, and tech-forward SaaS feel for headers, while Nunito brings approachability, readability, and a friendly vibe for body text and gamified elements.",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl font-black tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-bold",
+      "h4": "text-lg sm:text-xl font-semibold",
+      "body": "text-base font-medium leading-relaxed",
+      "small_labels": "text-xs font-bold uppercase tracking-[0.2em]"
+    }
+  },
+  "colors": {
+    "strategy": "High-contrast, light-themed Fluent UI with vibrant gamification accents.",
+    "primary": {
+      "base": "#0052FF",
+      "name": "Electric Blue",
+      "usage": "Primary CTAs, Active States, Mission Card highlights, User Dashboard headers."
+    },
+    "secondary": {
+      "base": "#0A192F",
+      "name": "Navy Blue",
+      "usage": "Text color, Admin Dashboard headers, strong contrasts."
+    },
+    "accent_success": {
+      "base": "#10B981",
+      "name": "Emerald Green",
+      "usage": "Completed tasks, Approvals, XP gained, Checkmarks."
+    },
+    "accent_reward": {
+      "base": "#FFB800",
+      "name": "Gold",
+      "usage": "Level-up celebrations, Streaks, Achievement Badges, Tier ranks (Legend, etc)."
+    },
+    "backgrounds": {
+      "page": "#F8FAFC",
+      "card": "#FFFFFF",
+      "glass": "bg-white/70 backdrop-blur-xl border border-white/40"
+    },
+    "text": {
+      "primary": "#0A192F",
+      "secondary": "#64748B",
+      "disabled": "#94A3B8"
+    }
+  },
+  "surfaces_and_layouts": {
+    "style": "Microsoft Fluent inspired. High reliance on depth, layered shadows, and optical clarity.",
+    "cards": "Large corner radii (rounded-2xl to rounded-3xl). Flat white backgrounds with a delicate 1px border (border-slate-100) and soft, diffuse ambient shadows (shadow-sm or shadow-[0_8px_30px_rgba(0,0,0,0.04)]).",
+    "glassmorphism": "Used for sticky headers, sticky bottom navigations (mobile PWA), and dialog overlays. Must have backdrop-blur-xl and backdrop-saturate-150.",
+    "spacing": "Generous spacing. Use p-6 to p-8 inside cards. gap-6 to gap-8 between grid items.",
+    "dashboard_grid": {
+      "admin_view": "Bento Grid: grid-cols-1 md:grid-cols-4. Summary stats (col-span-1), Approvals Queue (col-span-2 row-span-2), Weekly Progress Chart (col-span-2 row-span-2).",
+      "user_view": "Mobile-first vertical flow on small screens. On desktop: Today's Missions (col-span-8), Stats & Streak (col-span-4)."
+    }
+  },
+  "key_components": {
+    "mission_card": {
+      "description": "Chore/Mission representations.",
+      "layout": "Flexbox row for lists, Flexbox col for board view. Must contain: Checkbox/Status, Title, Points Value (Gold color), Assignee Avatar, and Due Date.",
+      "interactions": "Hover state lifts the card (-translate-y-1) and increases shadow to shadow-md. If completed, background transitions to a very pale Emerald Green (bg-emerald-50) with an Emerald border."
+    },
+    "xp_progress_bar": {
+      "description": "Leveling system display.",
+      "layout": "Thick rounded-full track (h-4 to h-6) with an animated fill (Electric Blue or Gold gradient). Text overlays showing 'Current Level (e.g., Recruit)' on left, 'Next Level' on right."
+    },
+    "achievement_badge": {
+      "description": "Gallery item in the Rewards Center.",
+      "layout": "Circular or Hexagonal 3D-looking element. Use heavy drop-shadow. When locked, use grayscale filter (grayscale opacity-50)."
+    },
+    "onboarding_flow": {
+      "description": "Two-step first-login.",
+      "layout": "Centered large card on a playful gradient or image background. Step 1: Welcome & Gamification introduction. Step 2: Role selection (Admin/Child) & avatars."
+    }
+  },
+  "motion_and_interactions": {
+    "hover_states": "All interactive elements must have clear hover states. Buttons scale up slightly (scale-105) and brighten. Cards lift.",
+    "success_feedback": "Use Sonner toasts for mission completions. Integrate a subtle confetti or glowing animation when an approval is granted.",
+    "page_transitions": "Staggered fade-ins for dashboard widgets. The mission cards should pop in sequentially (framer-motion staggerChildren)."
+  },
+  "accessibility_and_testing": {
+    "contrast": "Ensure Gold text on White has a dark enough hue, or use Gold for backgrounds with Navy text.",
+    "testing": "All interactive elements MUST include data-testid. Example: data-testid='mission-card-complete-btn'."
+  },
+  "media_and_assets": {
+    "icons": "Use @heroicons/react for clean, approachable, Microsoft-fluent-compatible icons. For heavy gamification, consider @phosphor-icons/react (Duotone style).",
+    "image_urls": {
+      "avatars": [
+        {
+          "url": "https://images.unsplash.com/photo-1740252117070-7aa2955b25f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwyfHwzZCUyMGN1dGUlMjBhdmF0YXIlMjBjaGFyYWN0ZXJ8ZW58MHx8fHwxNzg1NTQ5ODk2fDA&ixlib=rb-4.1.0&q=85",
+          "category": "User Profile Avatar",
+          "description": "3D cute toy character, ideal for kid profile placeholder"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1740252117013-4fb21771e7ca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHw0fHwzZCUyMGN1dGUlMjBhdmF0YXIlMjBjaGFyYWN0ZXJ8ZW58MHx8fHwxNzg1NTQ5ODk2fDA&ixlib=rb-4.1.0&q=85",
+          "category": "User Profile Avatar",
+          "description": "3D cartoon character with blue hat"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1740252117027-4275d3f84385?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwzfHwzZCUyMGN1dGUlMjBhdmF0YXIlMjBjaGFyYWN0ZXJ8ZW58MHx8fHwxNzg1NTQ5ODk2fDA&ixlib=rb-4.1.0&q=85",
+          "category": "User Profile Avatar",
+          "description": "3D cartoon character with purple hair"
+        }
+      ],
+      "badges": [
+        {
+          "url": "https://images.unsplash.com/photo-1667840606455-d406da4c86a4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHw0fHwzZCUyMGdvbGQlMjBhY2hpZXZlbWVudCUyMGJhZGdlfGVufDB8fHx8MTc4NTU0OTg5Nnww&ixlib=rb-4.1.0&q=85",
+          "category": "Achievement Badge",
+          "description": "3D Gold achievement badge for Rewards Center"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1643449689391-f798261a16ee?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwyfHwzZCUyMGdvbGQlMjBhY2hpZXZlbWVudCUyMGJhZGdlfGVufDB8fHx8MTc4NTU0OTg5Nnww&ixlib=rb-4.1.0&q=85",
+          "category": "Achievement Badge",
+          "description": "Round yellow 3D object for rank/level badge"
+        }
+      ],
+      "onboarding": [
+        {
+          "url": "https://images.unsplash.com/photo-1685580388390-576100ae9ce3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxjaGVlcmZ1bCUyMGZhbWlseSUyMHBvcnRyYWl0fGVufDB8fHx8MTc4NTU0OTg5Nnww&ixlib=rb-4.1.0&q=85",
+          "category": "Onboarding Hero",
+          "description": "Cheerful family portrait for the welcome screen"
+        }
+      ]
+    }
+  },
+  "instructions_to_main_agent": [
+    "Prioritize Light Theme with high optical clarity. The background should be very light gray/off-white so the white cards pop.",
+    "Do NOT use generic purple AI slop gradients. Stick strictly to the Electric Blue, Navy, Emerald, and Gold palette.",
+    "Use standard HTML+Tailwind for main grid structures. Use Shadcn components for complex interactions (Dialogs, Progress, Tabs, Avatars) but heavily customize them to remove the 'Vercel look'.",
+    "Cards MUST have generous internal padding (p-6 minimum) and large rounded corners (rounded-2xl).",
+    "For the Level/XP progress bars, make them thick and obvious, as this is a core gamification mechanic.",
+    "In the User Dashboard, 'Missions' should feel like quest cards, not just a to-do list checkbox.",
+    "Include 'data-testid' attributes on every interactive element (e.g., 'approve-mission-button', 'avatar-selector')."
+  ],
+  "universal_guidelines": [
+    "You tend to converge toward generic outputs. Break the mold: make the UI feel distinctly like a modern family command center.",
+    "Create depth through layered design elements with z-index hierarchy and soft shadows.",
+    "Use glass-morphism effects with backdrop filters (blur-xl) for headers and overlays.",
+    "Never apply universal transition (transition: all). Target specific properties.",
+    "Never center align the App container using text-align: center.",
+    "Use sonner for toast notifications (success messages for chore completions).",
+    "NEVER use placeholder text for images. Always use the provided image URLs.",
+    "All .js components should follow these guidelines. No .tsx files."
+  ]
+}
