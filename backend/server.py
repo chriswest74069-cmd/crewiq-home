@@ -94,6 +94,40 @@ def level_for(lifetime_points: int):
     }
 
 
+PET_THRESHOLDS = [0, 50, 150, 300, 500, 750, 1050, 1400]
+PET_TITLES = ["Hatchling", "Buddy", "Companion", "Champion", "Guardian", "Legend", "Mythic", "Cosmic"]
+PET_ACCESSORIES = [
+    {"level": 2, "name": "Cool Hat"},
+    {"level": 3, "name": "Sunglasses"},
+    {"level": 4, "name": "Hero Cape"},
+    {"level": 5, "name": "Golden Crown"},
+    {"level": 6, "name": "Magic Wand"},
+    {"level": 7, "name": "Shining Halo"},
+]
+
+
+def pet_progress(xp: int):
+    level = 1
+    for i, t in enumerate(PET_THRESHOLDS):
+        if xp >= t:
+            level = i + 1
+    level = min(level, len(PET_THRESHOLDS))
+    floor = PET_THRESHOLDS[level - 1]
+    nxt = PET_THRESHOLDS[level] if level < len(PET_THRESHOLDS) else None
+    span = (nxt - floor) if nxt else 1
+    pct = min(100, round(((xp - floor) / span) * 100)) if nxt else 100
+    accessories = [a["name"] for a in PET_ACCESSORIES if level >= a["level"]]
+    title = PET_TITLES[min(level - 1, len(PET_TITLES) - 1)]
+    return {
+        "level": level, "title": title, "xp": xp,
+        "next_level_at": nxt, "progress_pct": pct,
+        "xp_to_next": (nxt - xp) if nxt else 0,
+        "accessories": accessories,
+        "next_accessory": next((a for a in PET_ACCESSORIES if a["level"] > level), None),
+    }
+
+
+
 def age_group(age: Optional[int]) -> str:
     if age is None:
         return "18+"
@@ -319,6 +353,24 @@ class TeamMissionCreate(BaseModel):
     participant_ids: List[str]
 
 
+class PetAdopt(BaseModel):
+    species: str
+    name: str
+
+
+class QuestMilestone(BaseModel):
+    title: str
+    target: int = Field(ge=1)
+    points: int = Field(default=0, ge=0)
+
+
+class QuestCreate(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    theme: str = "Adventure"
+    milestones: List[QuestMilestone]
+
+
 class RuleCreate(BaseModel):
     title: str
     body: str
@@ -352,6 +404,19 @@ async def notify(user_id: str, title: str, body: str, kind: str = "info"):
         "id": new_id(), "user_id": user_id, "title": title, "body": body,
         "kind": kind, "read": False, "created_at": now_iso(),
     })
+
+
+async def add_pet_xp(user_id: str, amount: int):
+    pet = await db.pets.find_one({"user_id": user_id})
+    if not pet:
+        return
+    new_xp = pet.get("xp", 0) + amount
+    old_level = pet_progress(pet.get("xp", 0))["level"]
+    new_level = pet_progress(new_xp)["level"]
+    await db.pets.update_one({"user_id": user_id}, {"$set": {"xp": new_xp}})
+    if new_level > old_level:
+        prog = pet_progress(new_xp)
+        await notify(user_id, "Your pet leveled up!", f"{pet['name']} reached Level {new_level} · {prog['title']}", "pet")
 
 
 def week_bounds(week_start: str = "monday"):
@@ -729,6 +794,7 @@ async def approve_assignment(aid: str, data: ApprovalAction, admin: dict = Depen
     await recompute_user(uid)
     newly = await check_achievements(uid)
     await recompute_user(uid)
+    await add_pet_xp(uid, total)
     await notify(uid, "Mission Approved!", f"'{a['title']}' +{total} points", "approval")
     await log_activity("approval", f"Approved '{a['title']}' for {u['first_name']} (+{total})", uid)
     return {"ok": True, "points_awarded": total, "new_achievements": newly}
@@ -1389,6 +1455,7 @@ async def approve_team_mission(tid: str, admin: dict = Depends(require_admin)):
         await db.users.update_one({"id": uid}, {"$inc": {"points_balance": share, "lifetime_points": share}})
         await recompute_user(uid)
         await check_achievements(uid)
+        await add_pet_xp(uid, share)
         await notify(uid, "Team Mission Complete!", f"'{t['title']}' +{share} points · {t.get('teamwork_badge', 'Teamwork')} badge!", "team")
     await db.team_missions.update_one({"id": tid}, {"$set": {"status": "completed", "completed_at": now_iso()}})
     await log_activity("team", f"Team mission approved: {t['title']} (+{share} each)")
@@ -1399,6 +1466,108 @@ async def approve_team_mission(tid: str, admin: dict = Depends(require_admin)):
 async def delete_team_mission(tid: str, admin: dict = Depends(require_admin)):
     await db.team_missions.delete_one({"id": tid})
     return {"ok": True}
+
+
+# ---------------- virtual pets ----------------
+@api.get("/pet")
+async def get_pet(user: dict = Depends(get_current_user)):
+    pet = await db.pets.find_one({"user_id": user["id"]}, {"_id": 0})
+    if not pet:
+        return {"pet": None}
+    pet["progress"] = pet_progress(pet.get("xp", 0))
+    return {"pet": pet}
+
+
+@api.post("/pet/adopt")
+async def adopt_pet(data: PetAdopt, user: dict = Depends(get_current_user)):
+    existing = await db.pets.find_one({"user_id": user["id"]})
+    if existing:
+        raise HTTPException(400, "You already have a pet")
+    doc = {"id": new_id(), "user_id": user["id"], "species": data.species,
+           "name": data.name, "xp": 0, "created_at": now_iso()}
+    await db.pets.insert_one(doc)
+    await log_activity("pet", f"{user['first_name']} adopted a {data.species} named {data.name}", user["id"])
+    out = {k: v for k, v in doc.items() if k != "_id"}
+    out["progress"] = pet_progress(0)
+    return {"pet": out}
+
+
+# ---------------- quest campaigns ----------------
+async def quest_view(q: dict, user_id: str, user_role: str):
+    if user_role == "member":
+        completed = await db.assignments.count_documents({
+            "assignee_id": user_id, "status": "approved",
+            "approved_at": {"$gte": q["created_at"]},
+        })
+    else:
+        completed = 0
+    claims = await db.quest_claims.find({"quest_id": q["id"], "user_id": user_id}, {"_id": 0}).to_list(100)
+    claimed_ids = {c["milestone_id"] for c in claims}
+    q["progress"] = completed
+    q["total_target"] = max((m["target"] for m in q.get("milestones", [])), default=0)
+    for m in q.get("milestones", []):
+        m["reached"] = completed >= m["target"]
+        m["claimed"] = m["id"] in claimed_ids
+    return q
+
+
+@api.get("/quests")
+async def get_quests(user: dict = Depends(get_current_user)):
+    q = {} if user["role"] == "admin" else {"active": True}
+    quests = await db.quests.find(q, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for qs in quests:
+        await quest_view(qs, user["id"], user["role"])
+    return quests
+
+
+@api.post("/quests")
+async def create_quest(data: QuestCreate, admin: dict = Depends(require_admin)):
+    milestones = []
+    for m in data.milestones:
+        milestones.append({"id": new_id(), "title": m.title, "target": m.target, "points": m.points})
+    milestones.sort(key=lambda x: x["target"])
+    doc = {"id": new_id(), "title": data.title, "description": data.description or "",
+           "theme": data.theme, "milestones": milestones, "active": True, "created_at": now_iso()}
+    await db.quests.insert_one(doc)
+    members = await db.users.find({"role": "member"}).to_list(200)
+    for mem in members:
+        await notify(mem["id"], "New Quest Campaign!", data.title, "quest")
+    await log_activity("quest", f"Quest launched: {data.title}")
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.delete("/quests/{qid}")
+async def delete_quest(qid: str, admin: dict = Depends(require_admin)):
+    await db.quests.delete_one({"id": qid})
+    await db.quest_claims.delete_many({"quest_id": qid})
+    return {"ok": True}
+
+
+@api.post("/quests/{qid}/milestones/{mid}/claim")
+async def claim_milestone(qid: str, mid: str, user: dict = Depends(get_current_user)):
+    q = await db.quests.find_one({"id": qid})
+    if not q or not q.get("active"):
+        raise HTTPException(404, "Quest not available")
+    milestone = next((m for m in q.get("milestones", []) if m["id"] == mid), None)
+    if not milestone:
+        raise HTTPException(404, "Milestone not found")
+    completed = await db.assignments.count_documents({
+        "assignee_id": user["id"], "status": "approved", "approved_at": {"$gte": q["created_at"]},
+    })
+    if completed < milestone["target"]:
+        raise HTTPException(400, f"Complete {milestone['target']} missions first ({completed}/{milestone['target']})")
+    existing = await db.quest_claims.find_one({"quest_id": qid, "milestone_id": mid, "user_id": user["id"]})
+    if existing:
+        raise HTTPException(400, "Already claimed")
+    pts = milestone.get("points", 0)
+    await db.quest_claims.insert_one({"id": new_id(), "quest_id": qid, "milestone_id": mid, "user_id": user["id"], "claimed_at": now_iso()})
+    if pts:
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"points_balance": pts, "lifetime_points": pts}})
+        await recompute_user(user["id"])
+        await add_pet_xp(user["id"], pts)
+    await notify(user["id"], "Quest Milestone Reached!", f"{milestone['title']} +{pts} points", "quest")
+    await log_activity("quest", f"{user['first_name']} claimed milestone '{milestone['title']}' (+{pts})", user["id"])
+    return {"ok": True, "points_awarded": pts}
 
 
 # ---------------- settings ----------------
@@ -1548,6 +1717,18 @@ async def seed():
                 "area": "Garage", "points_reward": 120, "teamwork_badge": "Teamwork Titan",
                 "participant_ids": pids, "progress": {p: False for p in pids}, "status": "active", "created_at": now_iso(),
             })
+    # demo quest (independent, seed once)
+    if await db.quests.count_documents({}) == 0:
+        await db.quests.insert_one({
+            "id": new_id(), "title": "Spring Cleaning Quest", "theme": "Spring Cleaning",
+            "description": "A multi-week campaign to get the whole house sparkling. Hit each milestone for bonus rewards!",
+            "milestones": [
+                {"id": new_id(), "title": "Getting Started", "target": 3, "points": 25},
+                {"id": new_id(), "title": "On a Roll", "target": 7, "points": 50},
+                {"id": new_id(), "title": "Spring Champion", "target": 15, "points": 120},
+            ],
+            "active": True, "created_at": now_iso(),
+        })
     # admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_pw = os.environ["ADMIN_PASSWORD"]
