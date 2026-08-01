@@ -181,12 +181,20 @@ class TestTransfers:
         assert "locked" in r.text.lower()
 
     def test_transfer_flow_accept_and_admin_approve(self, s, admin_h, members):
+        # Ensure Willow has a fresh transferable assignment (idempotent regardless of prior state)
+        payload = {"name": "TEST_Transferable Chore", "description": "t", "area": "Kitchen",
+                   "age_group": "9-12", "frequency": "Daily", "points": 15, "difficulty": "Easy",
+                   "estimated_time": "10 min", "transfer_locked": False, "active": True}
+        chore = s.post(f"{API}/chores", json=payload, headers=admin_h).json()
+        s.post(f"{API}/assignments",
+               json={"chore_id": chore["id"], "user_ids": [members["Willow"]["id"]]}, headers=admin_h)
+
         # Willow transfers a non-locked assignment to Garralt
         tok_w, _ = _member_login(s, members, "Willow", "5678")
         hw = {"Authorization": f"Bearer {tok_w}"}
         assigns = s.get(f"{API}/assignments", headers=hw).json()
-        cand = next((a for a in assigns if not a.get("transfer_locked") and not a.get("transferred")
-                     and a["status"] in ("assigned", "in_progress")), None)
+        cand = next((a for a in assigns if a["title"] == "TEST_Transferable Chore"
+                     and not a.get("transferred") and a["status"] in ("assigned", "in_progress")), None)
         assert cand is not None
 
         r = s.post(f"{API}/transfers",
@@ -299,8 +307,108 @@ class TestSettingsAndUsers:
         r = s.delete(f"{API}/users/{uid}", headers=admin_h)
         assert r.status_code == 200
 
+    def test_general_settings_persist(self, s, admin_h):
+        payload = {"household_name": "TEST_Home", "household_motto": "TEST_motto",
+                   "theme_accent": "violet", "timezone": "UTC"}
+        r = s.put(f"{API}/settings", json=payload, headers=admin_h)
+        assert r.status_code == 200
+        j = r.json()
+        assert j["household_name"] == "TEST_Home"
+        assert j["theme_accent"] == "violet"
+        r = s.get(f"{API}/settings", headers=admin_h)
+        j = r.json()
+        assert j["household_name"] == "TEST_Home"
+        assert j["household_motto"] == "TEST_motto"
+        assert j["theme_accent"] == "violet"
+        # restore
+        s.put(f"{API}/settings", json={"household_name": "The Crew",
+              "household_motto": "Together we get it done!", "theme_accent": "blue"}, headers=admin_h)
+
     def test_pin_validation(self, s, admin_h):
         r = s.post(f"{API}/users",
                    json={"first_name": "TESTBad", "pin": "12", "household_role": "Child"},
                    headers=admin_h)
         assert r.status_code == 400
+
+
+# ---------- household rules ----------
+class TestRules:
+    def test_seed_rules_exist(self, s, admin_h):
+        r = s.get(f"{API}/rules", headers=admin_h)
+        assert r.status_code == 200
+        assert len(r.json()) >= 3
+
+    def test_rule_crud_and_ack_flow(self, s, admin_h, members):
+        # Create
+        payload = {"title": "TEST_No shoes indoors", "body": "Please remove shoes at the door.",
+                   "category": "Household Rules", "pinned": False, "require_ack": True}
+        r = s.post(f"{API}/rules", json=payload, headers=admin_h)
+        assert r.status_code == 200, r.text
+        rid = r.json()["id"]
+        assert r.json()["version"] == 1
+        assert r.json()["archived"] is False
+
+        # Pin toggle
+        r = s.post(f"{API}/rules/{rid}/pin", headers=admin_h)
+        assert r.status_code == 200
+        rules = s.get(f"{API}/rules", headers=admin_h).json()
+        this_rule = next(x for x in rules if x["id"] == rid)
+        assert this_rule["pinned"] is True
+
+        # Edit -> version bumps
+        r = s.put(f"{API}/rules/{rid}",
+                  json={**payload, "body": "Updated body", "pinned": True}, headers=admin_h)
+        assert r.status_code == 200
+        assert r.json()["version"] == 2
+
+        # Member ack
+        tok, u = _member_login(s, members, "Willow", "5678")
+        h = {"Authorization": f"Bearer {tok}"}
+        # user dashboard exposes unacknowledged count > 0
+        dash = s.get(f"{API}/dashboard/user", headers=h).json()
+        unack_before = dash["unacknowledged_rules"]
+        assert unack_before >= 1
+
+        r = s.post(f"{API}/rules/{rid}/acknowledge", headers=h)
+        assert r.status_code == 200
+
+        # rules list shows acknowledged=True
+        rules_m = s.get(f"{API}/rules", headers=h).json()
+        me_rule = next(x for x in rules_m if x["id"] == rid)
+        assert me_rule["acknowledged"] is True
+
+        # dashboard unack count decreased
+        dash2 = s.get(f"{API}/dashboard/user", headers=h).json()
+        assert dash2["unacknowledged_rules"] == unack_before - 1
+
+        # Admin acks view lists Willow under acknowledged
+        acks = s.get(f"{API}/rules/{rid}/acks", headers=admin_h).json()
+        acked_ids = {a["user_id"] for a in acks["acknowledged"]}
+        pending_ids = {p["user_id"] for p in acks["pending"]}
+        assert u["id"] in acked_ids
+        assert u["id"] not in pending_ids
+
+        # Archive
+        r = s.post(f"{API}/rules/{rid}/archive", headers=admin_h)
+        assert r.status_code == 200
+        # Member GET /rules should hide archived
+        rules_m2 = s.get(f"{API}/rules", headers=h).json()
+        assert not any(x["id"] == rid for x in rules_m2)
+        # Admin sees archived
+        rules_a = s.get(f"{API}/rules", headers=admin_h).json()
+        assert any(x["id"] == rid and x.get("archived") for x in rules_a)
+
+        # Delete (also removes acks)
+        r = s.delete(f"{API}/rules/{rid}", headers=admin_h)
+        assert r.status_code == 200
+
+    def test_rule_ack_requires_auth(self, s):
+        r = s.post(f"{API}/rules/fake-id/acknowledge")
+        assert r.status_code == 401
+
+    def test_rule_create_requires_admin(self, s, members):
+        tok, _ = _member_login(s, members, "Garralt", "1234")
+        h = {"Authorization": f"Bearer {tok}"}
+        r = s.post(f"{API}/rules",
+                   json={"title": "x", "body": "y", "category": "Household Rules"}, headers=h)
+        assert r.status_code == 403

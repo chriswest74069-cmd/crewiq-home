@@ -10,34 +10,63 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   LayoutDashboard, Users, ClipboardList, MapPin, Send, CheckSquare, Repeat,
-  MessageSquare, Gift, Settings, Bell, LogOut, Target, Trophy, Award, Menu, ShieldCheck,
+  MessageSquare, Gift, Settings, Bell, LogOut, Target, Trophy, Award, Menu, ShieldCheck, ScrollText,
 } from "lucide-react";
 
 const ADMIN_NAV = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/admin/approvals", label: "Approvals", icon: CheckSquare },
-  { to: "/admin/members", label: "Crew Members", icon: Users },
-  { to: "/admin/chores", label: "Chore Library", icon: ClipboardList },
-  { to: "/admin/areas", label: "Rooms & Areas", icon: MapPin },
-  { to: "/admin/assignments", label: "Assignments", icon: Send },
-  { to: "/admin/transfers", label: "Transfers", icon: Repeat },
-  { to: "/admin/messages", label: "Messages", icon: MessageSquare },
-  { to: "/admin/rewards", label: "Rewards Center", icon: Gift },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
+  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true, color: "blue" },
+  { to: "/admin/approvals", label: "Approvals", icon: CheckSquare, color: "emerald" },
+  { to: "/admin/members", label: "Crew Members", icon: Users, color: "violet" },
+  { to: "/admin/chores", label: "Chore Library", icon: ClipboardList, color: "amber" },
+  { to: "/admin/areas", label: "Rooms & Areas", icon: MapPin, color: "cyan" },
+  { to: "/admin/assignments", label: "Assignments", icon: Send, color: "pink" },
+  { to: "/admin/transfers", label: "Transfers", icon: Repeat, color: "fuchsia" },
+  { to: "/admin/rules", label: "House Rules", icon: ScrollText, color: "rose" },
+  { to: "/admin/messages", label: "Messages", icon: MessageSquare, color: "teal" },
+  { to: "/admin/rewards", label: "Rewards Center", icon: Gift, color: "orange" },
+  { to: "/admin/settings", label: "Settings", icon: Settings, color: "indigo" },
 ];
 
 const USER_NAV = [
-  { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/app/missions", label: "My Missions", icon: Target },
-  { to: "/app/achievements", label: "Achievements", icon: Award },
-  { to: "/app/leaderboard", label: "Leaderboard", icon: Trophy },
-  { to: "/app/rewards", label: "Rewards", icon: Gift },
-  { to: "/app/messages", label: "Messages", icon: MessageSquare },
+  { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true, color: "blue" },
+  { to: "/app/missions", label: "My Missions", icon: Target, color: "emerald" },
+  { to: "/app/achievements", label: "Achievements", icon: Award, color: "amber" },
+  { to: "/app/leaderboard", label: "Leaderboard", icon: Trophy, color: "fuchsia" },
+  { to: "/app/rules", label: "House Rules", icon: ScrollText, color: "rose" },
+  { to: "/app/rewards", label: "Rewards", icon: Gift, color: "orange" },
+  { to: "/app/messages", label: "Messages", icon: MessageSquare, color: "teal" },
 ];
+
+const COLOR_ACTIVE = {
+  blue: "bg-blue-500 shadow-blue-500/30",
+  emerald: "bg-emerald-500 shadow-emerald-500/30",
+  violet: "bg-violet-500 shadow-violet-500/30",
+  amber: "bg-amber-500 shadow-amber-500/30",
+  cyan: "bg-cyan-500 shadow-cyan-500/30",
+  pink: "bg-pink-500 shadow-pink-500/30",
+  fuchsia: "bg-fuchsia-500 shadow-fuchsia-500/30",
+  rose: "bg-rose-500 shadow-rose-500/30",
+  teal: "bg-teal-500 shadow-teal-500/30",
+  orange: "bg-orange-500 shadow-orange-500/30",
+  indigo: "bg-indigo-500 shadow-indigo-500/30",
+};
+const COLOR_ICON = {
+  blue: "bg-blue-100 text-blue-600",
+  emerald: "bg-emerald-100 text-emerald-600",
+  violet: "bg-violet-100 text-violet-600",
+  amber: "bg-amber-100 text-amber-600",
+  cyan: "bg-cyan-100 text-cyan-600",
+  pink: "bg-pink-100 text-pink-600",
+  fuchsia: "bg-fuchsia-100 text-fuchsia-600",
+  rose: "bg-rose-100 text-rose-600",
+  teal: "bg-teal-100 text-teal-600",
+  orange: "bg-orange-100 text-orange-600",
+  indigo: "bg-indigo-100 text-indigo-600",
+};
 
 function NavList({ items, onNavigate }) {
   return (
-    <nav className="flex flex-col gap-1">
+    <nav className="flex flex-col gap-1.5">
       {items.map((it) => (
         <NavLink
           key={it.to}
@@ -47,13 +76,19 @@ function NavList({ items, onNavigate }) {
           data-testid={`nav-${it.label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
           className={({ isActive }) =>
             cn(
-              "group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-bold transition-[background-color,color] duration-200",
-              isActive ? "bg-ci-blue text-white card-shadow" : "text-slate-500 hover:bg-slate-100 hover:text-ci-navy"
+              "group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition-[background-color,color,transform] duration-200",
+              isActive ? cn("text-white shadow-lg", COLOR_ACTIVE[it.color]) : "text-slate-500 hover:bg-slate-100 hover:text-ci-navy"
             )
           }
         >
-          <it.icon className="h-[18px] w-[18px]" />
-          {it.label}
+          {({ isActive }) => (
+            <>
+              <span className={cn("grid h-8 w-8 place-items-center rounded-xl transition-colors", isActive ? "bg-white/20 text-white" : COLOR_ICON[it.color])}>
+                <it.icon className="h-[17px] w-[17px]" />
+              </span>
+              {it.label}
+            </>
+          )}
         </NavLink>
       ))}
     </nav>
@@ -129,9 +164,16 @@ export default function AppShell({ children }) {
   const doLogout = () => { logout(); navigate("/login"); };
 
   return (
-    <div className="min-h-screen bg-ci-page">
+    <div className="relative min-h-screen bg-ci-page">
+      {/* subtle neon wallpaper */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute -left-40 -top-40 h-[36rem] w-[36rem] rounded-full bg-blue-400/20 blur-[120px]" />
+        <div className="absolute right-[-12rem] top-1/4 h-[32rem] w-[32rem] rounded-full bg-fuchsia-400/15 blur-[120px]" />
+        <div className="absolute bottom-[-14rem] left-1/3 h-[34rem] w-[34rem] rounded-full bg-emerald-400/15 blur-[120px]" />
+        <div className="absolute right-1/4 bottom-10 h-72 w-72 rounded-full bg-amber-300/15 blur-[110px]" />
+      </div>
       {/* Sidebar desktop */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-100 bg-white p-4 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-100 bg-white/90 p-4 backdrop-blur-xl lg:flex">
         <div className="py-3"><Brand /></div>
         <div className="mt-4 flex-1 overflow-y-auto">
           <NavList items={items} />
@@ -141,7 +183,7 @@ export default function AppShell({ children }) {
         </button>
       </aside>
 
-      <div className="lg:pl-64">
+      <div className="relative z-10 lg:pl-64">
         {/* Topbar */}
         <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-100 glass px-4 py-3 lg:px-8">
           <div className="flex items-center gap-3">

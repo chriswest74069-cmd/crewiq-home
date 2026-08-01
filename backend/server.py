@@ -131,6 +131,11 @@ DEFAULT_SETTINGS = {
     "transfers_enabled": True,
     "week_start": "monday",
     "terms_version": "1.0",
+    "household_name": "The Crew",
+    "household_motto": "Together we get it done!",
+    "household_logo": "",
+    "timezone": "Local",
+    "theme_accent": "blue",
 }
 
 
@@ -263,6 +268,19 @@ class SettingsUpdate(BaseModel):
     transfer_cost: Optional[int] = None
     transfers_enabled: Optional[bool] = None
     week_start: Optional[str] = None
+    household_name: Optional[str] = None
+    household_motto: Optional[str] = None
+    household_logo: Optional[str] = None
+    timezone: Optional[str] = None
+    theme_accent: Optional[str] = None
+
+
+class RuleCreate(BaseModel):
+    title: str
+    body: str
+    category: str = "Household Rules"
+    pinned: bool = False
+    require_ack: bool = True
 
 
 # ---------------- utility ----------------
@@ -270,7 +288,11 @@ async def get_settings():
     s = await db.settings.find_one({"id": "household"}, {"_id": 0})
     if not s:
         await db.settings.insert_one(dict(DEFAULT_SETTINGS))
-        s = dict(DEFAULT_SETTINGS)
+        return dict(DEFAULT_SETTINGS)
+    missing = {k: v for k, v in DEFAULT_SETTINGS.items() if k not in s}
+    if missing:
+        await db.settings.update_one({"id": "household"}, {"$set": missing})
+        s.update(missing)
     return s
 
 
@@ -928,6 +950,99 @@ async def get_activity(admin: dict = Depends(require_admin)):
     return await db.activity.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
 
 
+# ---------------- household rules ----------------
+@api.get("/rules")
+async def get_rules(user: dict = Depends(get_current_user)):
+    q = {} if user["role"] == "admin" else {"archived": {"$ne": True}}
+    rules = await db.rules.find(q, {"_id": 0}).sort([("pinned", -1), ("created_at", -1)]).to_list(500)
+    acks = await db.rule_acks.find({"user_id": user["id"]}, {"_id": 0}).to_list(1000)
+    ack_map = {(a["rule_id"], a["version"]) for a in acks}
+    for r in rules:
+        r["acknowledged"] = (r["id"], r.get("version", 1)) in ack_map
+    return rules
+
+
+@api.post("/rules")
+async def create_rule(data: RuleCreate, admin: dict = Depends(require_admin)):
+    doc = {"id": new_id(), **data.model_dump(), "archived": False, "version": 1, "created_at": now_iso()}
+    await db.rules.insert_one(doc)
+    members = await db.users.find({"role": "member"}).to_list(200)
+    for m in members:
+        await notify(m["id"], "Household Rules Updated", data.title, "rule")
+    await log_activity("rule", f"Rule created: {data.title}")
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.put("/rules/{rid}")
+async def update_rule(rid: str, data: RuleCreate, admin: dict = Depends(require_admin)):
+    r = await db.rules.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Not found")
+    new_version = r.get("version", 1) + 1
+    await db.rules.update_one({"id": rid}, {"$set": {**data.model_dump(), "version": new_version}})
+    members = await db.users.find({"role": "member"}).to_list(200)
+    for m in members:
+        await notify(m["id"], "Household Rules Updated", f"'{data.title}' was updated", "rule")
+    return await db.rules.find_one({"id": rid}, {"_id": 0})
+
+
+@api.post("/rules/{rid}/pin")
+async def pin_rule(rid: str, admin: dict = Depends(require_admin)):
+    r = await db.rules.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Not found")
+    await db.rules.update_one({"id": rid}, {"$set": {"pinned": not r.get("pinned", False)}})
+    return {"ok": True}
+
+
+@api.post("/rules/{rid}/archive")
+async def archive_rule(rid: str, admin: dict = Depends(require_admin)):
+    r = await db.rules.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Not found")
+    await db.rules.update_one({"id": rid}, {"$set": {"archived": not r.get("archived", False)}})
+    return {"ok": True}
+
+
+@api.delete("/rules/{rid}")
+async def delete_rule(rid: str, admin: dict = Depends(require_admin)):
+    await db.rules.delete_one({"id": rid})
+    await db.rule_acks.delete_many({"rule_id": rid})
+    return {"ok": True}
+
+
+@api.post("/rules/{rid}/acknowledge")
+async def acknowledge_rule(rid: str, user: dict = Depends(get_current_user)):
+    r = await db.rules.find_one({"id": rid})
+    if not r:
+        raise HTTPException(404, "Not found")
+    version = r.get("version", 1)
+    existing = await db.rule_acks.find_one({"rule_id": rid, "user_id": user["id"], "version": version})
+    if not existing:
+        await db.rule_acks.insert_one({
+            "id": new_id(), "rule_id": rid, "user_id": user["id"], "user_name": user["first_name"],
+            "version": version, "acknowledged_at": now_iso(),
+        })
+        await log_activity("rule_ack", f"{user['first_name']} acknowledged '{r['title']}'", user["id"])
+    return {"ok": True}
+
+
+@api.get("/rules/{rid}/acks")
+async def rule_acks(rid: str, admin: dict = Depends(require_admin)):
+    r = await db.rules.find_one({"id": rid}, {"_id": 0})
+    if not r:
+        raise HTTPException(404, "Not found")
+    version = r.get("version", 1)
+    acks = await db.rule_acks.find({"rule_id": rid, "version": version}, {"_id": 0}).to_list(500)
+    members = await db.users.find({"role": "member"}, {"_id": 0, "id": 1, "first_name": 1, "avatar": 1}).to_list(200)
+    acked_ids = {a["user_id"] for a in acks}
+    return {
+        "rule": r,
+        "acknowledged": [{"user_id": a["user_id"], "user_name": a["user_name"], "acknowledged_at": a["acknowledged_at"]} for a in acks],
+        "pending": [{"user_id": m["id"], "first_name": m["first_name"], "avatar": m.get("avatar", "")} for m in members if m["id"] not in acked_ids],
+    }
+
+
 # ---------------- settings ----------------
 @api.get("/settings")
 async def read_settings(user: dict = Depends(get_current_user)):
@@ -979,6 +1094,10 @@ async def user_dashboard(user: dict = Depends(get_current_user)):
     position = next((i + 1 for i, m in enumerate(ranking) if m["id"] == uid), None)
     unread = await db.notifications.count_documents({"user_id": uid, "read": False})
     unread_ann = await db.notifications.count_documents({"user_id": uid, "read": False, "kind": "announcement"})
+    active_rules = await db.rules.find({"archived": {"$ne": True}, "require_ack": True}, {"_id": 0}).to_list(500)
+    acks = await db.rule_acks.find({"user_id": uid}, {"_id": 0}).to_list(1000)
+    ack_set = {(a["rule_id"], a["version"]) for a in acks}
+    unack_rules = sum(1 for r in active_rules if (r["id"], r.get("version", 1)) not in ack_set)
     return {
         "missions": missions,
         "mission_count": len(missions),
@@ -994,6 +1113,7 @@ async def user_dashboard(user: dict = Depends(get_current_user)):
                         for m in ranking[:10]],
         "unread_notifications": unread,
         "unread_announcements": unread_ann,
+        "unacknowledged_rules": unack_rules,
     }
 
 
@@ -1019,6 +1139,18 @@ async def seed():
             await db.areas.insert_one({"id": new_id(), "name": name, "custom": False})
     # settings
     await get_settings()
+    # demo rules (independent, seed once)
+    if await db.rules.count_documents({}) == 0:
+        rules_seed = [
+            {"title": "Screens off by 9 PM on school nights", "category": "Screen Time Rules", "pinned": True, "require_ack": True,
+             "body": "All devices go on the charging station in the kitchen by 9:00 PM Sunday through Thursday. Weekends are more relaxed but be reasonable."},
+            {"title": "Kitchen must be clean before bed", "category": "Chore Policies", "pinned": False, "require_ack": True,
+             "body": "Whoever cooks does not clean. Everyone helps clear their own plate and the counters get wiped down every night."},
+            {"title": "Be kind in messages", "category": "Communication Rules", "pinned": False, "require_ack": True,
+             "body": "Use CrewIQ messaging respectfully. No teasing, no all-caps arguments. Treat your crew the way you want to be treated."},
+        ]
+        for r in rules_seed:
+            await db.rules.insert_one({"id": new_id(), **r, "archived": False, "version": 1, "created_at": now_iso()})
     # admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_pw = os.environ["ADMIN_PASSWORD"]

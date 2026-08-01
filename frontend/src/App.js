@@ -16,6 +16,7 @@ import Areas from "@/pages/admin/Areas";
 import Assignments from "@/pages/admin/Assignments";
 import Approvals from "@/pages/admin/Approvals";
 import AdminTransfers from "@/pages/admin/AdminTransfers";
+import RulesCenter from "@/pages/admin/RulesCenter";
 import AdminMessages from "@/pages/admin/AdminMessages";
 import AdminRewards from "@/pages/admin/AdminRewards";
 import SettingsPage from "@/pages/admin/SettingsPage";
@@ -26,6 +27,7 @@ import Achievements from "@/pages/user/Achievements";
 import Leaderboard from "@/pages/user/Leaderboard";
 import UserRewards from "@/pages/user/UserRewards";
 import UserMessages from "@/pages/user/UserMessages";
+import UserRules from "@/pages/user/UserRules";
 
 function Splash() {
   return (
@@ -72,6 +74,7 @@ function AdminRoutes() {
           <Route path="areas" element={<Areas />} />
           <Route path="assignments" element={<Assignments />} />
           <Route path="transfers" element={<AdminTransfers />} />
+          <Route path="rules" element={<RulesCenter />} />
           <Route path="messages" element={<AdminMessages />} />
           <Route path="rewards" element={<AdminRewards />} />
           <Route path="settings" element={<SettingsPage />} />
@@ -92,6 +95,7 @@ function UserRoutes() {
           <Route path="achievements" element={<Achievements />} />
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="rewards" element={<UserRewards />} />
+          <Route path="rules" element={<UserRules />} />
           <Route path="messages" element={<UserMessages />} />
           <Route path="*" element={<Navigate to="/app" replace />} />
         </Routes>

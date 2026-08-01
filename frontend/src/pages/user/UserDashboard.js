@@ -9,7 +9,7 @@ import { StatCard, SectionCard, EmptyState } from "@/components/crew/Widgets";
 import { MOTIVATION } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Star, Flame, Trophy, Target, Rocket, ChevronRight, Megaphone } from "lucide-react";
+import { Star, Flame, Trophy, Target, Rocket, ChevronRight, Megaphone, ScrollText } from "lucide-react";
 
 export default function UserDashboard() {
   const { user } = useAuth();
@@ -40,6 +40,15 @@ export default function UserDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* rules to acknowledge */}
+      {data.unacknowledged_rules > 0 && (
+        <button data-testid="rules-nudge" onClick={() => navigate("/app/rules")} className="flex w-full items-center gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-5 py-4 text-left transition-transform hover:-translate-y-0.5">
+          <ScrollText className="h-6 w-6 text-rose-500" />
+          <p className="flex-1 text-sm font-bold text-ci-navy">📢 You have {data.unacknowledged_rules} household rule{data.unacknowledged_rules === 1 ? "" : "s"} to read and acknowledge.</p>
+          <ChevronRight className="h-5 w-5 text-rose-400" />
+        </button>
+      )}
 
       {/* streak alert */}
       {data.streak_count > 0 && (

@@ -15,6 +15,17 @@ export const HOUSEHOLD_ROLES = ["Child", "Teen", "Adult"];
 export const REWARD_CATEGORIES = ["Money", "Gift Cards", "Items", "Screen Time", "Privileges", "Family Activities", "Custom"];
 export const MESSAGE_CATEGORIES = ["General", "Announcements", "Chore Updates", "Rewards", "Missions", "Reminders", "Achievements", "Approval Requests"];
 
+export const RULE_CATEGORIES = [
+  { name: "Household Rules", icon: "🏠", cls: "bg-blue-100 text-blue-700" },
+  { name: "Chore Policies", icon: "📋", cls: "bg-emerald-100 text-emerald-700" },
+  { name: "Reward Policies", icon: "🎁", cls: "bg-amber-100 text-amber-700" },
+  { name: "Communication Rules", icon: "💬", cls: "bg-teal-100 text-teal-700" },
+  { name: "Screen Time Rules", icon: "📱", cls: "bg-fuchsia-100 text-fuchsia-700" },
+  { name: "Gaming Rules", icon: "🎮", cls: "bg-violet-100 text-violet-700" },
+  { name: "School Policies", icon: "📚", cls: "bg-orange-100 text-orange-700" },
+  { name: "Special Household Notices", icon: "⚠️", cls: "bg-rose-100 text-rose-700" },
+];
+
 export const AVATARS = [
   "https://images.unsplash.com/photo-1740252117070-7aa2955b25f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwyfHwzZCUyMGN1dGUlMjBhdmF0YXIlMjBjaGFyYWN0ZXJ8ZW58MHx8fHwxNzg1NTQ5ODk2fDA&ixlib=rb-4.1.0&q=85",
   "https://images.unsplash.com/photo-1740252117013-4fb21771e7ca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHw0fHwzZCUyMGN1dGUlMjBhdmF0YXIlMjBjaGFyYWN0ZXJ8ZW58MHx8fHwxNzg1NTQ5ODk2fDA&ixlib=rb-4.1.0&q=85",
