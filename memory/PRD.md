@@ -52,7 +52,25 @@ See "Deferred (next rounds)" below.
 - **User power actions**: reset onboarding / reset streak / reset all progress / disable+enable account (disabled members blocked at login AND mid-session, hidden from PIN screen).
 - Verified: 37/37 backend tests pass; all frontend admin-expansion + regression flows pass.
 
-## Deferred (next rounds — from Update 2 Admin Expansion)
+## Implemented — Version 4 start (2026-06)
+- **Badge Creator**: admin designs custom badges (tiers Common/Rare/Epic/Legendary, icon, point+XP reward), awards to members (adds points, prevents double-award, negative-reward guarded). Members see awarded badges on Achievements.
+- **Family Calendar**: role-aware shared calendar; admin schedules events (7 types + bonus-point-day flag) with member notifications; members view read-only; "Upcoming Events" widget on member dashboard.
+- **Team Missions**: admin creates collaborative missions (≥2 participants, dedup, total points + teamwork badge); each participant marks their part done; when all done → pending approval → admin approves → points split evenly + teamwork badge notification.
+- Verified: 46/46 backend tests pass; all frontend flows pass.
+
+## Deferred (next rounds — Version 4 "Connected Family Ecosystem")
+- Family HQ customizable home screen (weather, rearrangeable widgets).
+- Skills & Learning system (per-skill XP from missions) + Certifications.
+- Family Goal Vault (shared goals with pooled progress).
+- Quest Campaigns (multi-week milestone campaigns).
+- Household Store expansion (profile items, themes, avatar frames, boosts) + Boosts/Power-ups.
+- Pet system (unlockable pets that level with the user).
+- Family Teams (team competitions) + Trophy Room / Hall of Fame.
+- Advanced Automation (IF/THEN rule builder), Household Seasons (quarterly), Legacy system (lifetime stats).
+- Household Wiki, Event Center (auto-reward events).
+- Earlier deferred: Achievement Manager, Crew Coins economy, Roles/Permissions matrix, notification prefs, chore escalation/photo proof, streak rewards config, advanced leaderboards, data export.
+
+## Deferred (Update 2 Admin Expansion)
 - Badge Management (admin badge creator: tiers Common/Rare/Epic/Legendary, icon, XP/point reward, hidden/seasonal) + manual badge assignment.
 - Achievement Management (admin-defined automatic/manual/secret/event achievements with custom requirements).
 - Household Economy / Crew Coins (multi-currency, multipliers, bonus/holiday events, penalties, transaction history).

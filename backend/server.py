@@ -298,8 +298,8 @@ class BadgeCreate(BaseModel):
     description: Optional[str] = ""
     tier: str = "Common"
     icon: str = "award"
-    point_reward: int = 0
-    xp_reward: int = 0
+    point_reward: int = Field(default=0, ge=0)
+    xp_reward: int = Field(default=0, ge=0)
 
 
 class EventCreate(BaseModel):
@@ -1345,12 +1345,15 @@ async def get_team_missions(user: dict = Depends(get_current_user)):
 
 @api.post("/team-missions")
 async def create_team_mission(data: TeamMissionCreate, admin: dict = Depends(require_admin)):
-    if len(data.participant_ids) < 2:
+    pids = list(dict.fromkeys(data.participant_ids))
+    if len(pids) < 2:
         raise HTTPException(400, "Pick at least two crew members for a team mission")
-    doc = {"id": new_id(), **data.model_dump(), "progress": {uid: False for uid in data.participant_ids},
+    payload = data.model_dump()
+    payload["participant_ids"] = pids
+    doc = {"id": new_id(), **payload, "progress": {uid: False for uid in pids},
            "status": "active", "created_at": now_iso()}
     await db.team_missions.insert_one(doc)
-    for uid in data.participant_ids:
+    for uid in pids:
         await notify(uid, "New Team Mission!", data.title, "team")
     await log_activity("team", f"Team mission created: {data.title}")
     return {k: v for k, v in doc.items() if k != "_id"}
