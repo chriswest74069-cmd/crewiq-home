@@ -412,3 +412,172 @@ class TestRules:
         r = s.post(f"{API}/rules",
                    json={"title": "x", "body": "y", "category": "Household Rules"}, headers=h)
         assert r.status_code == 403
+
+
+
+# ---------- challenges ----------
+class TestChallenges:
+    def test_seed_challenges(self, s, admin_h):
+        r = s.get(f"{API}/challenges", headers=admin_h)
+        assert r.status_code == 200
+        assert len(r.json()) >= 3
+
+    def test_challenge_crud_and_claim(self, s, admin_h, members):
+        # Create
+        payload = {"title": "TEST_Read 10 pages", "description": "Read a book",
+                   "difficulty": "Easy", "type": "Daily", "points_reward": 12,
+                   "xp_reward": 12, "active": True}
+        r = s.post(f"{API}/challenges", json=payload, headers=admin_h)
+        assert r.status_code == 200, r.text
+        cid = r.json()["id"]
+        assert r.json()["points_reward"] == 12
+
+        # Edit
+        r = s.put(f"{API}/challenges/{cid}",
+                  json={**payload, "points_reward": 15}, headers=admin_h)
+        assert r.status_code == 200
+        assert r.json()["points_reward"] == 15
+
+        # Member claim
+        tok, u = _member_login(s, members, "Garralt", "1234")
+        h = {"Authorization": f"Bearer {tok}"}
+        before = s.get(f"{API}/auth/me", headers=h).json()["points_balance"]
+        r = s.post(f"{API}/challenges/{cid}/claim", headers=h)
+        assert r.status_code == 200, r.text
+        assert r.json()["points_awarded"] == 15
+        after = s.get(f"{API}/auth/me", headers=h).json()["points_balance"]
+        assert after - before == 15
+
+        # Double claim prevented
+        r = s.post(f"{API}/challenges/{cid}/claim", headers=h)
+        assert r.status_code == 400
+
+        # Claimed flag reflected in GET
+        chs = s.get(f"{API}/challenges", headers=h).json()
+        this = next(c for c in chs if c["id"] == cid)
+        assert this.get("claimed") is True
+        assert this.get("claim_count", 0) >= 1
+
+        # Delete cleanup
+        r = s.delete(f"{API}/challenges/{cid}", headers=admin_h)
+        assert r.status_code == 200
+
+    def test_challenge_create_requires_admin(self, s, members):
+        tok, _ = _member_login(s, members, "Willow", "5678")
+        h = {"Authorization": f"Bearer {tok}"}
+        r = s.post(f"{API}/challenges",
+                   json={"title": "x", "type": "Daily", "difficulty": "Easy", "points_reward": 5},
+                   headers=h)
+        assert r.status_code == 403
+
+
+# ---------- reports & analytics ----------
+class TestReports:
+    def test_reports_shape_and_data(self, s, admin_h):
+        r = s.get(f"{API}/reports/analytics", headers=admin_h)
+        assert r.status_code == 200
+        j = r.json()
+        for k in ["mission_completion", "rankings", "point_growth", "reward_redemptions", "totals"]:
+            assert k in j
+        totals = j["totals"]
+        for k in ["total_points_awarded", "total_assignments", "total_approved",
+                  "participation_pct", "active_members", "total_redemptions"]:
+            assert k in totals
+        # Seeded data => >=3 members with rankings, some approved assignments
+        assert totals["active_members"] >= 3
+        assert isinstance(j["rankings"], list) and len(j["rankings"]) >= 3
+
+    def test_reports_admin_only(self, s, members):
+        tok, _ = _member_login(s, members, "Garralt", "1234")
+        r = s.get(f"{API}/reports/analytics", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 403
+
+
+# ---------- security / audit ----------
+class TestSecurity:
+    def test_security_logs_shape(self, s, admin_h):
+        r = s.get(f"{API}/security/logs", headers=admin_h)
+        assert r.status_code == 200
+        j = r.json()
+        for k in ["activity", "logins", "redemptions", "point_logs", "rule_logs", "failed_logins"]:
+            assert k in j
+        # An admin login just happened -> logins has entries
+        assert len(j["logins"]) >= 1
+        assert any(l.get("role") == "admin" and l.get("success") for l in j["logins"])
+
+    def test_security_admin_only(self, s, members):
+        tok, _ = _member_login(s, members, "Garralt", "1234")
+        r = s.get(f"{API}/security/logs", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 403
+
+
+# ---------- power actions & leaderboard settings ----------
+class TestPowerActions:
+    def test_reset_streak_sets_zero(self, s, admin_h, members):
+        uid = members["Willow"]["id"]
+        # bump to nonzero
+        r = s.post(f"{API}/users/{uid}/reset-streak", headers=admin_h)
+        assert r.status_code == 200
+        # verify
+        r = s.get(f"{API}/users", headers=admin_h)
+        w = next(u for u in r.json() if u["id"] == uid)
+        assert w["streak_count"] == 0
+
+    def test_reset_progress(self, s, admin_h):
+        # Create sacrificial user
+        r = s.post(f"{API}/users",
+                   json={"first_name": "TEST_Progress", "pin": "9922", "age": 10,
+                         "household_role": "Child"}, headers=admin_h)
+        uid = r.json()["id"]
+        s.post(f"{API}/users/{uid}/adjust-points", json={"amount": 200}, headers=admin_h)
+        r = s.post(f"{API}/users/{uid}/reset-progress", headers=admin_h)
+        assert r.status_code == 200
+        users = s.get(f"{API}/users", headers=admin_h).json()
+        u = next(x for x in users if x["id"] == uid)
+        assert u["points_balance"] == 0
+        assert u["lifetime_points"] == 0
+        assert u["streak_count"] == 0
+        s.delete(f"{API}/users/{uid}", headers=admin_h)
+
+    def test_toggle_active_hides_from_pin_list(self, s, admin_h):
+        # Use a throwaway user to avoid interfering with parallel tests
+        r = s.post(f"{API}/users",
+                   json={"first_name": "TEST_Toggle", "pin": "8877", "age": 12,
+                         "household_role": "Child"}, headers=admin_h)
+        uid = r.json()["id"]
+        # Confirm visible pre-disable
+        pub = s.get(f"{API}/auth/members").json()
+        assert any(m["id"] == uid for m in pub)
+        # Disable
+        r = s.post(f"{API}/users/{uid}/toggle-active", headers=admin_h)
+        assert r.status_code == 200 and r.json()["disabled"] is True
+        pub = s.get(f"{API}/auth/members").json()
+        assert not any(m["id"] == uid for m in pub)
+        r = s.post(f"{API}/auth/member/login", json={"user_id": uid, "pin": "8877"})
+        assert r.status_code == 403
+        # Re-enable
+        r = s.post(f"{API}/users/{uid}/toggle-active", headers=admin_h)
+        assert r.status_code == 200 and r.json()["disabled"] is False
+        pub = s.get(f"{API}/auth/members").json()
+        assert any(m["id"] == uid for m in pub)
+        s.delete(f"{API}/users/{uid}", headers=admin_h)
+
+
+class TestLeaderboardSettings:
+    def test_leaderboard_toggles_persist(self, s, admin_h):
+        r = s.put(f"{API}/settings",
+                  json={"leaderboards_enabled": False, "hide_point_totals": True}, headers=admin_h)
+        assert r.status_code == 200
+        j = r.json()
+        assert j["leaderboards_enabled"] is False
+        assert j["hide_point_totals"] is True
+        # Verify persisted
+        j2 = s.get(f"{API}/settings", headers=admin_h).json()
+        assert j2["leaderboards_enabled"] is False
+        assert j2["hide_point_totals"] is True
+        # Restore defaults
+        s.put(f"{API}/settings",
+              json={"leaderboards_enabled": True, "hide_point_totals": False}, headers=admin_h)
+        j3 = s.get(f"{API}/settings", headers=admin_h).json()
+        assert j3["leaderboards_enabled"] is True
+        assert j3["hide_point_totals"] is False

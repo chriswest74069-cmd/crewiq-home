@@ -17,6 +17,9 @@ import Assignments from "@/pages/admin/Assignments";
 import Approvals from "@/pages/admin/Approvals";
 import AdminTransfers from "@/pages/admin/AdminTransfers";
 import RulesCenter from "@/pages/admin/RulesCenter";
+import ChallengesCenter from "@/pages/admin/ChallengesCenter";
+import Reports from "@/pages/admin/Reports";
+import Security from "@/pages/admin/Security";
 import AdminMessages from "@/pages/admin/AdminMessages";
 import AdminRewards from "@/pages/admin/AdminRewards";
 import SettingsPage from "@/pages/admin/SettingsPage";
@@ -28,6 +31,7 @@ import Leaderboard from "@/pages/user/Leaderboard";
 import UserRewards from "@/pages/user/UserRewards";
 import UserMessages from "@/pages/user/UserMessages";
 import UserRules from "@/pages/user/UserRules";
+import UserChallenges from "@/pages/user/UserChallenges";
 
 function Splash() {
   return (
@@ -74,9 +78,12 @@ function AdminRoutes() {
           <Route path="areas" element={<Areas />} />
           <Route path="assignments" element={<Assignments />} />
           <Route path="transfers" element={<AdminTransfers />} />
+          <Route path="challenges" element={<ChallengesCenter />} />
           <Route path="rules" element={<RulesCenter />} />
           <Route path="messages" element={<AdminMessages />} />
           <Route path="rewards" element={<AdminRewards />} />
+          <Route path="reports" element={<Reports />} />
+          <Route path="security" element={<Security />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
@@ -92,6 +99,7 @@ function UserRoutes() {
         <Routes>
           <Route index element={<UserDashboard />} />
           <Route path="missions" element={<Missions />} />
+          <Route path="challenges" element={<UserChallenges />} />
           <Route path="achievements" element={<Achievements />} />
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="rewards" element={<UserRewards />} />

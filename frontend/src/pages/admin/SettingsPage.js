@@ -43,12 +43,18 @@ export default function SettingsPage() {
       qc.invalidateQueries({ queryKey: ["settings"] });
     } catch (e) { toast.error(apiError(e)); }
   };
+  const saveLeaderboard = async () => {
+    try {
+      await api.put("/settings", { leaderboards_enabled: form.leaderboards_enabled, hide_point_totals: form.hide_point_totals });
+      toast.success("Leaderboard settings saved");
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    } catch (e) { toast.error(apiError(e)); }
+  };
 
   const upcoming = [
-    { icon: Star, label: "Points & Economy" }, { icon: Trophy, label: "Achievements & Badges" },
-    { icon: Flame, label: "Streak Rules" }, { icon: Sliders, label: "Challenges" },
-    { icon: Bell, label: "Notifications" }, { icon: Calendar, label: "Family Calendar" },
-    { icon: ShieldCheck, label: "Security & Permissions" }, { icon: BarChart3, label: "Reports & Analytics" },
+    { icon: Trophy, label: "Achievements & Badges" }, { icon: Flame, label: "Streak Rewards" },
+    { icon: Star, label: "Crew Coins Economy" }, { icon: Bell, label: "Notification Prefs" },
+    { icon: Calendar, label: "Family Calendar" }, { icon: ShieldCheck, label: "Roles & Permissions" },
   ];
 
   return (
@@ -86,15 +92,27 @@ export default function SettingsPage() {
         <Button data-testid="save-settings-btn" onClick={saveTransfers} className="mt-5 rounded-xl bg-ci-blue font-bold hover:bg-blue-700"><Save className="mr-2 h-4 w-4" /> Save Transfers</Button>
       </SectionCard>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <button onClick={() => navigate("/admin/rules")} className="flex items-center gap-4 rounded-2xl bg-white p-6 text-left card-shadow border border-slate-100 transition-transform hover:-translate-y-1">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-100 text-rose-600"><ScrollText className="h-6 w-6" /></span>
-          <div><p className="font-head font-bold text-ci-navy">Household Rules Center</p><p className="text-sm text-slate-400">Post rules & track acknowledgements</p></div>
-        </button>
-        <button onClick={() => navigate("/admin/members")} className="flex items-center gap-4 rounded-2xl bg-white p-6 text-left card-shadow border border-slate-100 transition-transform hover:-translate-y-1">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-100 text-violet-600"><Home className="h-6 w-6" /></span>
-          <div><p className="font-head font-bold text-ci-navy">User Management</p><p className="text-sm text-slate-400">Profiles, PINs, points & progress</p></div>
-        </button>
+      <SectionCard title="Leaderboard Settings">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-4">
+            <div className="flex items-center gap-3"><Trophy className="h-5 w-5 text-fuchsia-500" /><div><p className="font-bold text-ci-navy">Enable leaderboards</p><p className="text-xs text-slate-400">Show household rankings to members</p></div></div>
+            <Switch data-testid="settings-leaderboards" checked={!!form.leaderboards_enabled} onCheckedChange={(v) => set("leaderboards_enabled", v)} />
+          </div>
+          <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-4">
+            <div className="flex items-center gap-3"><Star className="h-5 w-5 text-amber-500" /><div><p className="font-bold text-ci-navy">Hide point totals</p><p className="text-xs text-slate-400">Rank members without revealing exact points</p></div></div>
+            <Switch data-testid="settings-hide-points" checked={!!form.hide_point_totals} onCheckedChange={(v) => set("hide_point_totals", v)} />
+          </div>
+        </div>
+        <Button data-testid="save-leaderboard-btn" onClick={saveLeaderboard} className="mt-5 rounded-xl bg-ci-blue font-bold hover:bg-blue-700"><Save className="mr-2 h-4 w-4" /> Save Leaderboard</Button>
+      </SectionCard>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <LinkCard onClick={() => navigate("/admin/rules")} icon={ScrollText} color="bg-rose-100 text-rose-600" title="Household Rules Center" sub="Post rules & track acknowledgements" />
+        <LinkCard onClick={() => navigate("/admin/challenges")} icon={Sliders} color="bg-lime-100 text-lime-600" title="Challenge System" sub="Daily, weekly & seasonal challenges" />
+        <LinkCard onClick={() => navigate("/admin/reports")} icon={BarChart3} color="bg-sky-100 text-sky-600" title="Reports & Analytics" sub="Household performance charts" />
+        <LinkCard onClick={() => navigate("/admin/security")} icon={ShieldCheck} color="bg-red-100 text-red-600" title="Security & Audit" sub="Activity, logins & point logs" />
+        <LinkCard onClick={() => navigate("/admin/members")} icon={Home} color="bg-violet-100 text-violet-600" title="User Management" sub="Profiles, PINs, points & progress" />
+        <LinkCard onClick={() => navigate("/admin/rewards")} icon={Star} color="bg-orange-100 text-orange-600" title="Rewards Center" sub="Create & manage rewards" />
       </div>
 
       <SectionCard title="More Controls — Coming Soon">
@@ -111,3 +129,9 @@ export default function SettingsPage() {
   );
 }
 const F = ({ label, children }) => (<div><label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-400">{label}</label>{children}</div>);
+const LinkCard = ({ onClick, icon: Icon, color, title, sub }) => (
+  <button onClick={onClick} className="flex items-center gap-4 rounded-2xl bg-white p-6 text-left card-shadow border border-slate-100 transition-transform hover:-translate-y-1">
+    <span className={cn("grid h-12 w-12 place-items-center rounded-2xl", color)}><Icon className="h-6 w-6" /></span>
+    <div><p className="font-head font-bold text-ci-navy">{title}</p><p className="text-sm text-slate-400">{sub}</p></div>
+  </button>
+);

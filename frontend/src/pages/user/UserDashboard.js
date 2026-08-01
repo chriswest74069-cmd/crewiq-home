@@ -16,9 +16,12 @@ export default function UserDashboard() {
   const navigate = useNavigate();
   const { data } = useQuery({ queryKey: ["dashboard-user"], queryFn: async () => (await api.get("/dashboard/user")).data });
   const { data: anns = [] } = useQuery({ queryKey: ["announcements"], queryFn: async () => (await api.get("/announcements")).data });
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: async () => (await api.get("/settings")).data });
   const motivation = useMemo(() => MOTIVATION[Math.floor(Math.random() * MOTIVATION.length)], []);
 
   if (!data) return null;
+  const lbEnabled = settings ? settings.leaderboards_enabled : true;
+  const hidePts = settings ? settings.hide_point_totals : false;
 
   return (
     <div className="space-y-6">
@@ -99,16 +102,20 @@ export default function UserDashboard() {
             </SectionCard>
           )}
           <SectionCard title="Leaderboard">
-            <div className="space-y-2">
-              {data.leaderboard.map((m, i) => (
-                <div key={m.id} className={`flex items-center gap-3 rounded-xl px-3 py-2 ${m.id === user?.id ? "bg-blue-50" : ""}`}>
-                  <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${i === 0 ? "bg-ci-gold text-ci-navy" : i === 1 ? "bg-slate-200 text-slate-600" : i === 2 ? "bg-amber-200 text-amber-800" : "bg-slate-100 text-slate-400"}`}>{i + 1}</span>
-                  <Avatar className="h-8 w-8"><AvatarImage src={m.avatar} /><AvatarFallback className="bg-ci-navy text-xs text-white">{m.first_name[0]}</AvatarFallback></Avatar>
-                  <span className="flex-1 text-sm font-bold text-ci-navy">{m.first_name}</span>
-                  <span className="text-sm font-black text-ci-blue">{m.lifetime_points.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
+            {!lbEnabled ? (
+              <p className="py-6 text-center text-sm text-slate-400">Leaderboards are turned off by your admin.</p>
+            ) : (
+              <div className="space-y-2">
+                {data.leaderboard.map((m, i) => (
+                  <div key={m.id} className={`flex items-center gap-3 rounded-xl px-3 py-2 ${m.id === user?.id ? "bg-blue-50" : ""}`}>
+                    <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${i === 0 ? "bg-ci-gold text-ci-navy" : i === 1 ? "bg-slate-200 text-slate-600" : i === 2 ? "bg-amber-200 text-amber-800" : "bg-slate-100 text-slate-400"}`}>{i + 1}</span>
+                    <Avatar className="h-8 w-8"><AvatarImage src={m.avatar} /><AvatarFallback className="bg-ci-navy text-xs text-white">{m.first_name[0]}</AvatarFallback></Avatar>
+                    <span className="flex-1 text-sm font-bold text-ci-navy">{m.first_name}</span>
+                    <span className="text-sm font-black text-ci-blue">{hidePts ? "•••" : m.lifetime_points.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </SectionCard>
         </div>
       </div>

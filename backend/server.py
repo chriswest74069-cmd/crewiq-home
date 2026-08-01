@@ -136,6 +136,8 @@ DEFAULT_SETTINGS = {
     "household_logo": "",
     "timezone": "Local",
     "theme_accent": "blue",
+    "leaderboards_enabled": True,
+    "hide_point_totals": False,
 }
 
 
@@ -273,6 +275,20 @@ class SettingsUpdate(BaseModel):
     household_logo: Optional[str] = None
     timezone: Optional[str] = None
     theme_accent: Optional[str] = None
+    leaderboards_enabled: Optional[bool] = None
+    hide_point_totals: Optional[bool] = None
+
+
+class ChallengeCreate(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    difficulty: str = "Easy"
+    type: str = "Daily"
+    points_reward: int = 25
+    xp_reward: int = 25
+    badge_reward: Optional[str] = ""
+    expires_at: Optional[str] = None
+    active: bool = True
 
 
 class RuleCreate(BaseModel):
@@ -378,14 +394,16 @@ async def root():
 async def admin_login(data: AdminLogin):
     u = await db.users.find_one({"email": data.email.lower().strip(), "role": "admin"})
     if not u or not verify_secret(data.password, u.get("password_hash", "")):
+        await db.login_history.insert_one({"id": new_id(), "identity": data.email.lower().strip(), "role": "admin", "success": False, "at": now_iso()})
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    await db.login_history.insert_one({"id": new_id(), "user_id": u["id"], "identity": u["first_name"], "role": "admin", "success": True, "at": now_iso()})
     token = create_token(u["id"], "admin")
     return {"token": token, "user": public_user(u)}
 
 
 @api.get("/auth/members")
 async def list_member_logins():
-    members = await db.users.find({"role": "member"}, {"_id": 0}).to_list(200)
+    members = await db.users.find({"role": "member", "disabled": {"$ne": True}}, {"_id": 0}).to_list(200)
     return [{"id": m["id"], "first_name": m["first_name"], "nickname": m.get("nickname", ""),
              "avatar": m.get("avatar", ""), "rank": m.get("rank", "Recruit")} for m in members]
 
@@ -394,7 +412,11 @@ async def list_member_logins():
 async def member_login(data: MemberLogin):
     u = await db.users.find_one({"id": data.user_id, "role": "member"})
     if not u or not verify_secret(data.pin, u.get("pin_hash", "")):
+        await db.login_history.insert_one({"id": new_id(), "user_id": data.user_id, "role": "member", "success": False, "at": now_iso()})
         raise HTTPException(status_code=401, detail="Incorrect PIN")
+    if u.get("disabled"):
+        raise HTTPException(status_code=403, detail="This account has been disabled by your administrator")
+    await db.login_history.insert_one({"id": new_id(), "user_id": u["id"], "identity": u["first_name"], "role": "member", "success": True, "at": now_iso()})
     token = create_token(u["id"], "member")
     return {"token": token, "user": public_user(u)}
 
@@ -489,6 +511,40 @@ async def delete_profile(user_id: str, admin: dict = Depends(require_admin)):
 async def reset_onboarding(user_id: str, admin: dict = Depends(require_admin)):
     await db.users.update_one({"id": user_id}, {"$set": {"onboarding_complete": False}})
     return {"ok": True}
+
+
+@api.post("/users/{user_id}/reset-progress")
+async def reset_progress(user_id: str, admin: dict = Depends(require_admin)):
+    u = await db.users.find_one({"id": user_id})
+    if not u:
+        raise HTTPException(404, "Not found")
+    await db.users.update_one({"id": user_id}, {"$set": {
+        "points_balance": 0, "lifetime_points": 0, "spent_points": 0, "level": 1,
+        "rank": "Recruit", "streak_count": 0, "achievements": [], "achievement_count": 0, "mission_count": 0,
+    }})
+    await log_activity("admin", f"Reset all progress for {u['first_name']}", user_id)
+    return {"ok": True}
+
+
+@api.post("/users/{user_id}/reset-streak")
+async def reset_streak(user_id: str, admin: dict = Depends(require_admin)):
+    u = await db.users.find_one({"id": user_id})
+    if not u:
+        raise HTTPException(404, "Not found")
+    await db.users.update_one({"id": user_id}, {"$set": {"streak_count": 0}})
+    await log_activity("admin", f"Reset streak for {u['first_name']}", user_id)
+    return {"ok": True}
+
+
+@api.post("/users/{user_id}/toggle-active")
+async def toggle_active(user_id: str, admin: dict = Depends(require_admin)):
+    u = await db.users.find_one({"id": user_id})
+    if not u:
+        raise HTTPException(404, "Not found")
+    newval = not u.get("disabled", False)
+    await db.users.update_one({"id": user_id}, {"$set": {"disabled": newval}})
+    await log_activity("admin", f"{'Disabled' if newval else 'Enabled'} account: {u['first_name']}", user_id)
+    return {"ok": True, "disabled": newval}
 
 
 @api.post("/users/{user_id}/adjust-points")
@@ -1043,6 +1099,127 @@ async def rule_acks(rid: str, admin: dict = Depends(require_admin)):
     }
 
 
+# ---------------- challenges ----------------
+@api.get("/challenges")
+async def get_challenges(user: dict = Depends(get_current_user)):
+    q = {} if user["role"] == "admin" else {"active": True}
+    items = await db.challenges.find(q, {"_id": 0}).sort("created_at", -1).to_list(200)
+    claims = await db.challenge_claims.find({"user_id": user["id"]}, {"_id": 0}).to_list(500)
+    claimed = {c["challenge_id"] for c in claims}
+    for c in items:
+        c["claimed"] = c["id"] in claimed
+        c["claim_count"] = await db.challenge_claims.count_documents({"challenge_id": c["id"]})
+    return items
+
+
+@api.post("/challenges")
+async def create_challenge(data: ChallengeCreate, admin: dict = Depends(require_admin)):
+    doc = {"id": new_id(), **data.model_dump(), "created_at": now_iso()}
+    await db.challenges.insert_one(doc)
+    members = await db.users.find({"role": "member"}).to_list(200)
+    for m in members:
+        await notify(m["id"], "New Challenge!", data.title, "challenge")
+    await log_activity("challenge", f"Challenge created: {data.title}")
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.put("/challenges/{cid}")
+async def update_challenge(cid: str, data: ChallengeCreate, admin: dict = Depends(require_admin)):
+    await db.challenges.update_one({"id": cid}, {"$set": data.model_dump()})
+    return await db.challenges.find_one({"id": cid}, {"_id": 0})
+
+
+@api.delete("/challenges/{cid}")
+async def delete_challenge(cid: str, admin: dict = Depends(require_admin)):
+    await db.challenges.delete_one({"id": cid})
+    await db.challenge_claims.delete_many({"challenge_id": cid})
+    return {"ok": True}
+
+
+@api.post("/challenges/{cid}/claim")
+async def claim_challenge(cid: str, user: dict = Depends(get_current_user)):
+    c = await db.challenges.find_one({"id": cid})
+    if not c or not c.get("active"):
+        raise HTTPException(404, "Challenge not available")
+    existing = await db.challenge_claims.find_one({"challenge_id": cid, "user_id": user["id"]})
+    if existing:
+        raise HTTPException(400, "You already completed this challenge")
+    pts = c.get("points_reward", 0)
+    await db.challenge_claims.insert_one({"id": new_id(), "challenge_id": cid, "user_id": user["id"], "claimed_at": now_iso()})
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"points_balance": pts, "lifetime_points": pts}})
+    await recompute_user(user["id"])
+    newly = await check_achievements(user["id"])
+    await notify(user["id"], "Challenge Complete!", f"'{c['title']}' +{pts} points", "challenge")
+    await log_activity("challenge", f"{user['first_name']} completed challenge '{c['title']}' (+{pts})", user["id"])
+    return {"ok": True, "points_awarded": pts, "new_achievements": newly}
+
+
+# ---------------- reports & analytics ----------------
+@api.get("/reports/analytics")
+async def reports_analytics(admin: dict = Depends(require_admin)):
+    members = await db.users.find({"role": "member"}, {"_id": 0}).to_list(200)
+    completion, rankings = [], []
+    for m in members:
+        approved = await db.assignments.count_documents({"assignee_id": m["id"], "status": "approved"})
+        completion.append({"name": m["first_name"], "missions": approved})
+        rankings.append({"name": m["first_name"], "points": m.get("lifetime_points", 0), "streak": m.get("streak_count", 0), "achievements": len(m.get("achievements", []))})
+    rankings.sort(key=lambda x: x["points"], reverse=True)
+
+    # point growth over last 7 days from approval activity
+    from collections import defaultdict
+    approvals = await db.assignments.find({"status": "approved"}, {"_id": 0}).to_list(2000)
+    by_day = defaultdict(int)
+    for a in approvals:
+        day = (a.get("approved_at") or a.get("created_at") or now_iso())[:10]
+        by_day[day] += a.get("points", 0) + a.get("bonus_points", 0)
+    growth = [{"date": d[5:], "points": p} for d, p in sorted(by_day.items())][-7:]
+
+    redemptions = await db.redemptions.find({}, {"_id": 0}).to_list(500)
+    redeem_by = defaultdict(int)
+    for r in redemptions:
+        redeem_by[r["reward_name"]] += 1
+    redeem_data = [{"name": n, "count": c} for n, c in redeem_by.items()]
+
+    total_assign = await db.assignments.count_documents({})
+    total_approved = await db.assignments.count_documents({"status": "approved"})
+    total_points = sum(m.get("lifetime_points", 0) for m in members)
+    return {
+        "mission_completion": completion,
+        "rankings": rankings,
+        "point_growth": growth,
+        "reward_redemptions": redeem_data,
+        "totals": {
+            "total_points_awarded": total_points,
+            "total_assignments": total_assign,
+            "total_approved": total_approved,
+            "participation_pct": round((total_approved / total_assign) * 100) if total_assign else 0,
+            "active_members": len(members),
+            "total_redemptions": len(redemptions),
+        },
+    }
+
+
+# ---------------- security / audit logs ----------------
+@api.get("/security/logs")
+async def security_logs(admin: dict = Depends(require_admin)):
+    activity = await db.activity.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    logins = await db.login_history.find({}, {"_id": 0}).sort("at", -1).to_list(50)
+    redemptions = await db.redemptions.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    for r in redemptions:
+        u = await db.users.find_one({"id": r.get("user_id")}, {"_id": 0, "first_name": 1})
+        r["user_name"] = u["first_name"] if u else "?"
+    point_logs = [a for a in activity if a.get("kind") in ("points", "approval", "challenge", "admin")]
+    rule_logs = [a for a in activity if a.get("kind") in ("rule", "rule_ack")]
+    return {
+        "activity": activity,
+        "logins": logins,
+        "redemptions": redemptions,
+        "point_logs": point_logs,
+        "rule_logs": rule_logs,
+        "failed_logins": [l for l in logins if not l.get("success")],
+    }
+
+
 # ---------------- settings ----------------
 @api.get("/settings")
 async def read_settings(user: dict = Depends(get_current_user)):
@@ -1151,6 +1328,15 @@ async def seed():
         ]
         for r in rules_seed:
             await db.rules.insert_one({"id": new_id(), **r, "archived": False, "version": 1, "created_at": now_iso()})
+    # demo challenges (independent, seed once)
+    if await db.challenges.count_documents({}) == 0:
+        ch_seed = [
+            {"title": "Triple Threat", "description": "Complete 3 missions today.", "difficulty": "Medium", "type": "Daily", "points_reward": 30, "xp_reward": 30, "badge_reward": "Daily Hustler"},
+            {"title": "Kitchen Crusader", "description": "Finish any kitchen mission this week.", "difficulty": "Easy", "type": "Weekly", "points_reward": 20, "xp_reward": 20, "badge_reward": ""},
+            {"title": "Streak Keeper", "description": "Log in and complete a mission 5 days in a row.", "difficulty": "Hard", "type": "Weekly", "points_reward": 60, "xp_reward": 60, "badge_reward": "Consistency King"},
+        ]
+        for c in ch_seed:
+            await db.challenges.insert_one({"id": new_id(), **c, "expires_at": None, "active": True, "created_at": now_iso()})
     # admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_pw = os.environ["ADMIN_PASSWORD"]

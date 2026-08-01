@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   LayoutDashboard, Users, ClipboardList, MapPin, Send, CheckSquare, Repeat,
   MessageSquare, Gift, Settings, Bell, LogOut, Target, Trophy, Award, Menu, ShieldCheck, ScrollText,
+  Zap, BarChart3, ShieldAlert,
 } from "lucide-react";
 
 const ADMIN_NAV = [
@@ -21,15 +22,19 @@ const ADMIN_NAV = [
   { to: "/admin/areas", label: "Rooms & Areas", icon: MapPin, color: "cyan" },
   { to: "/admin/assignments", label: "Assignments", icon: Send, color: "pink" },
   { to: "/admin/transfers", label: "Transfers", icon: Repeat, color: "fuchsia" },
+  { to: "/admin/challenges", label: "Challenges", icon: Zap, color: "lime" },
   { to: "/admin/rules", label: "House Rules", icon: ScrollText, color: "rose" },
   { to: "/admin/messages", label: "Messages", icon: MessageSquare, color: "teal" },
   { to: "/admin/rewards", label: "Rewards Center", icon: Gift, color: "orange" },
+  { to: "/admin/reports", label: "Reports", icon: BarChart3, color: "sky" },
+  { to: "/admin/security", label: "Security", icon: ShieldAlert, color: "red" },
   { to: "/admin/settings", label: "Settings", icon: Settings, color: "indigo" },
 ];
 
 const USER_NAV = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true, color: "blue" },
   { to: "/app/missions", label: "My Missions", icon: Target, color: "emerald" },
+  { to: "/app/challenges", label: "Challenges", icon: Zap, color: "lime" },
   { to: "/app/achievements", label: "Achievements", icon: Award, color: "amber" },
   { to: "/app/leaderboard", label: "Leaderboard", icon: Trophy, color: "fuchsia" },
   { to: "/app/rules", label: "House Rules", icon: ScrollText, color: "rose" },
@@ -49,6 +54,9 @@ const COLOR_ACTIVE = {
   teal: "bg-teal-500 shadow-teal-500/30",
   orange: "bg-orange-500 shadow-orange-500/30",
   indigo: "bg-indigo-500 shadow-indigo-500/30",
+  lime: "bg-lime-500 shadow-lime-500/30",
+  sky: "bg-sky-500 shadow-sky-500/30",
+  red: "bg-red-500 shadow-red-500/30",
 };
 const COLOR_ICON = {
   blue: "bg-blue-100 text-blue-600",
@@ -62,6 +70,9 @@ const COLOR_ICON = {
   teal: "bg-teal-100 text-teal-600",
   orange: "bg-orange-100 text-orange-600",
   indigo: "bg-indigo-100 text-indigo-600",
+  lime: "bg-lime-100 text-lime-600",
+  sky: "bg-sky-100 text-sky-600",
+  red: "bg-red-100 text-red-600",
 };
 
 function NavList({ items, onNavigate }) {

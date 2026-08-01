@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/crew/Widgets";
 import { AVATARS, HOUSEHOLD_ROLES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { UserPlus, Star, Flame, Trophy, Pencil, Trash2, RotateCcw, Users, Plus, Minus } from "lucide-react";
+import { UserPlus, Star, Flame, Trophy, Pencil, Trash2, RotateCcw, Users, Plus, Minus, MoreVertical, Power, Zap, Eraser } from "lucide-react";
 
 const EMPTY = { first_name: "", last_name: "", nickname: "", age: "", grade: "", email: "", avatar: AVATARS[0], pin: "", household_role: "Child", chore_time_window: "Anytime" };
 
@@ -49,6 +50,9 @@ export default function Members() {
   };
   const resetOnb = async (m) => { await api.post(`/users/${m.id}/reset-onboarding`); toast.success(`Onboarding reset for ${m.first_name}`); };
   const adjust = async (m, amount) => { await api.post(`/users/${m.id}/adjust-points`, { amount }); toast.success(`${amount > 0 ? "+" : ""}${amount} points`); refresh(); };
+  const resetProgress = async (m) => { if (!window.confirm(`Reset ALL progress for ${m.first_name}? This clears points, level, streak & achievements.`)) return; await api.post(`/users/${m.id}/reset-progress`); toast.success(`Progress reset for ${m.first_name}`); refresh(); };
+  const resetStreak = async (m) => { await api.post(`/users/${m.id}/reset-streak`); toast.success(`Streak reset for ${m.first_name}`); refresh(); };
+  const toggleActive = async (m) => { const { data } = await api.post(`/users/${m.id}/toggle-active`); toast.success(data.disabled ? `${m.first_name} disabled` : `${m.first_name} enabled`); refresh(); };
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
 
@@ -77,7 +81,9 @@ export default function Members() {
               </div>
               <div className="mt-3 flex items-center justify-between">
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500">{m.rank}</span>
-                <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", m.onboarding_complete ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>{m.onboarding_complete ? "Onboarded" : "Pending onboarding"}</span>
+                {m.disabled
+                  ? <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">Disabled</span>
+                  : <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", m.onboarding_complete ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>{m.onboarding_complete ? "Onboarded" : "Pending onboarding"}</span>}
               </div>
               <div className="mt-3 flex items-center gap-1">
                 <Button size="sm" variant="outline" className="flex-1 rounded-lg" onClick={() => adjust(m, -10)} data-testid={`minus-${m.id}`}><Minus className="h-4 w-4" /></Button>
@@ -86,8 +92,19 @@ export default function Members() {
               </div>
               <div className="mt-3 flex gap-2">
                 <Button size="sm" variant="outline" className="flex-1 rounded-lg font-bold" onClick={() => openEdit(m)} data-testid={`edit-${m.id}`}><Pencil className="mr-1 h-3.5 w-3.5" /> Edit</Button>
-                <Button size="sm" variant="outline" className="rounded-lg" onClick={() => resetOnb(m)} title="Reset onboarding"><RotateCcw className="h-4 w-4" /></Button>
                 <Button size="sm" variant="outline" className="rounded-lg text-red-500" onClick={() => del(m)} data-testid={`delete-${m.id}`}><Trash2 className="h-4 w-4" /></Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="rounded-lg" data-testid={`more-${m.id}`}><MoreVertical className="h-4 w-4" /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-xl">
+                    <DropdownMenuItem onClick={() => resetOnb(m)} data-testid={`reset-onboarding-${m.id}`}><RotateCcw className="mr-2 h-4 w-4" /> Reset onboarding</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => resetStreak(m)} data-testid={`reset-streak-${m.id}`}><Flame className="mr-2 h-4 w-4" /> Reset streak</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => resetProgress(m)} data-testid={`reset-progress-${m.id}`}><Eraser className="mr-2 h-4 w-4" /> Reset all progress</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => toggleActive(m)} data-testid={`toggle-active-${m.id}`} className={m.disabled ? "text-emerald-600" : "text-red-500"}><Power className="mr-2 h-4 w-4" /> {m.disabled ? "Enable account" : "Disable account"}</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           ))}

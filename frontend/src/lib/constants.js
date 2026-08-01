@@ -9,6 +9,7 @@ export const LEVELS = [
 ];
 
 export const DIFFICULTIES = ["Easy", "Medium", "Hard", "Epic"];
+export const CHALLENGE_TYPES = ["Daily", "Weekly", "Monthly", "Seasonal"];
 export const FREQUENCIES = ["Daily", "Weekly", "Bi-Weekly", "Monthly", "Seasonal", "One Time"];
 export const AGE_GROUPS = ["5-8", "9-12", "13-17", "18+"];
 export const HOUSEHOLD_ROLES = ["Child", "Teen", "Adult"];

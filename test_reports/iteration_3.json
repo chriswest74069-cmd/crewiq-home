@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 3 covers the CrewIQ Admin Expansion: Challenge System (admin CRUD + member claim), Reports & Analytics, Security & Audit Center, User Power Actions (reset streak/progress/onboarding, toggle-active), Leaderboard visibility settings, and Settings Center link cards, plus regression on prior features. Backend: extended /app/backend/tests/backend_test.py from 26 to 37 pytest tests (parallel-safe). All 37/37 pass. New coverage: seed challenges, challenge create+edit+claim+double-claim guard, admin-only guard on POST /challenges & GET /reports/analytics & GET /security/logs, reports payload shape+totals, security logs payload shape+admin login recording, reset-streak sets streak=0, reset-progress zeroes points/lifetime/streak/achievements, toggle-active hides from /auth/members and blocks PIN login with 403, /settings persists leaderboards_enabled+hide_point_totals then restores defaults. Frontend Playwright against public URL: admin logged in, created UI_TEST Challenge (add-challenge-btn -> challenge-title/points -> save-challenge-btn) with card visible; Reports page shows the 4 stat labels (Points Awarded, Missions Approved, Participation, Redemptions) and 28 SVGs (bar/line/pie charts); Security tabs (Activity, Login History, Point Logs, Rule Logs, Redemptions) all switch; Login History contains admin entries. Members: reset-streak on Willow moved streak 1->0 (verified via /api/users); toggle-active on Avery marked card 'Disabled' and Avery disappeared from /login PIN tiles (count=0); direct member PIN login attempt returned 403 (from backend tests). Settings: settings-hide-points ON + save-leaderboard-btn saved; Settings Center link cards for Rules Center, Challenge System, Reports, Security, User Management, Rewards Center present. Member (Garralt): claim-challenge-<id> awarded exactly +17 points (1320 -> 1337), card flipped to green Completed! state, claim button removed, and API double-claim returned 400 'You already completed this challenge'. With hide_point_totals=true, the member Leaderboard page and Dashboard both display ••• in place of numbers; with leaderboards_enabled=false the member Leaderboard shows 'Leaderboards are turned off - Your admin has disabled household rankings for now.'. Cleanup: re-enabled Avery, deleted UI_TEST challenge and all TEST_ chores/assignments, restored settings to defaults (leaderboards_enabled=true, hide_point_totals=false). Final PIN tile list confirms Garralt, Willow, Avery all present.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Post-login navigation to /admin/challenges via sidebar click", "issue": "First attempt after admin login sometimes rendered EmptyState even though /api/challenges returns 3 seeded items. Reloading or direct-navigating to /admin/challenges resolves it. Possibly a React-Query cache/refetch timing race when the token is set immediately before navigation. Not blocking, but worth investigating (e.g., ensure api.defaults.headers.Authorization is set synchronously via an axios interceptor reading localStorage each request).", "affected_selectors": ["nav-challenges"]}
+    ],
+    "design_issues": [
+      {"screen": "Admin dialogs (Challenge)", "issues": ["Radix DialogContent still missing aria-describedby/Description on New Challenge dialog — a11y console warning only, non-blocking."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Investigate the intermittent empty Challenges page immediately after admin login-sidebar-click (likely axios auth-header timing / react-query cache). Users may see 'No challenges yet' on their first click after login.",
+    "Add aria-describedby/DialogDescription to admin dialogs to silence Radix a11y warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py has grown to 1455 lines. Strongly recommend splitting into routers per domain (auth, users, chores, assignments, transfers, rules, challenges, rewards, reports, security, settings, dashboard).",
+    "GET /api/challenges runs an extra count_documents per challenge inside the loop (N+1 queries for claim_count). For growing challenge lists, prefer an aggregation with $lookup on challenge_claims to compute counts in one round-trip.",
+    "POST /api/challenges/{cid}/claim does not validate expires_at. If a challenge has expires_at in the past it will still be claimable. Consider rejecting claims when expires_at < now.",
+    "POST /users/{id}/reset-progress currently deletes achievements array and mission_count, but does NOT touch existing assignment records or challenge_claims — a fully reset user still has 'claimed' challenges. Consider deleting rows in db.challenge_claims and archiving/soft-deleting their approved assignments.",
+    "toggle_active returns {ok, disabled} but the JWT of an already-logged-in disabled member is not invalidated. get_current_user should reject users where disabled=True (currently only member_login blocks initial login). A user disabled mid-session keeps working until token expiry.",
+    "GET /reports/analytics is O(members * assignments). For larger households, prefer a single aggregation grouped by assignee_id.",
+    "SettingsUpdate accepts partial fields — good — but the model has many Optional[...] fields with no server-side range validation (e.g., free_transfers_per_week could be a huge negative). Add Field(ge=0) constraints.",
+    "Frontend ChallengesCenter uses window.confirm for delete — inconsistent with the rest of the app which uses shadcn Dialog. Minor UX inconsistency."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (37/37)", "frontend": "100% of Admin Expansion + regression flows verified"},
+  "test_credentials": "Admin admin@crewiq.com / Admin123!; Garralt PIN 1234, Willow PIN 5678, Avery PIN 4321",
+  "seed_data_creation": "Backend seeds 3 challenges + 3 rules on startup (verified). Tests create/delete TEST_ prefixed users, chores, assignments, rewards, challenges. Playwright test created UI_TEST Challenge and cleaned it up. Post-run demo state confirmed default: leaderboards_enabled=true, hide_point_totals=false, all 3 members visible on PIN screen, no TEST_ chores/assignments remaining.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Garralt's onboarding was reset during iteration 2 and got re-completed during this run via API. Garralt's lifetime points increased by 17 from claiming UI_TEST challenge (challenge deleted, but points remain — that is expected/correct game design). Backend REACT_APP_BACKEND_URL=https://crew-headquarters.preview.emergentagent.com. Willow's streak was reset to 0 as part of testing (was 1 before). If future tests need Willow to have a streak, seed one first.",
+  "rca of the issue": "N/A - no functional issues found. Only a soft race condition observed on first sidebar click after login (challenges page); mitigated by reload/direct navigation."
+}

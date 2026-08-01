@@ -8,7 +8,23 @@ import { Crown } from "lucide-react";
 export default function Leaderboard() {
   const { user } = useAuth();
   const { data } = useQuery({ queryKey: ["dashboard-user"], queryFn: async () => (await api.get("/dashboard/user")).data });
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: async () => (await api.get("/settings")).data });
   const board = data?.leaderboard || [];
+  const lbEnabled = settings ? settings.leaderboards_enabled : true;
+  const hidePts = settings ? settings.hide_point_totals : false;
+
+  if (!lbEnabled) {
+    return (
+      <div className="space-y-6">
+        <div><h1 className="font-head text-3xl font-black text-ci-navy">Household Leaderboard</h1></div>
+        <div className="grid place-items-center rounded-2xl bg-white p-12 card-shadow border border-slate-100 text-center">
+          <Crown className="mb-3 h-10 w-10 text-slate-300" />
+          <p className="font-head font-bold text-ci-navy">Leaderboards are turned off</p>
+          <p className="text-sm text-slate-400">Your admin has disabled household rankings for now.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -27,7 +43,7 @@ export default function Leaderboard() {
               <div key={m.id} className="flex flex-col items-center">
                 <Avatar className={`mb-2 ${place === 1 ? "h-16 w-16 ring-4 ring-ci-gold" : "h-12 w-12"}`}><AvatarImage src={m.avatar} /><AvatarFallback className="bg-ci-navy text-white">{m.first_name[0]}</AvatarFallback></Avatar>
                 <p className="text-sm font-bold text-ci-navy">{m.first_name}</p>
-                <p className="text-xs font-black text-ci-blue">{m.lifetime_points.toLocaleString()} XP</p>
+                <p className="text-xs font-black text-ci-blue">{hidePts ? "•••" : `${m.lifetime_points.toLocaleString()} XP`}</p>
                 <div className={`mt-2 w-full rounded-t-2xl ${bg} ${h} grid place-items-start justify-center pt-3`}>
                   {place === 1 && <Crown className="h-6 w-6 text-white" />}
                   <span className="font-head text-2xl font-black text-white">{place}</span>
@@ -47,7 +63,7 @@ export default function Leaderboard() {
               <p className="font-bold text-ci-navy">{m.first_name} {m.id === user?.id && <span className="text-xs font-bold text-ci-blue">(You)</span>}</p>
               <span className="text-xs font-bold text-slate-400">{m.rank}</span>
             </div>
-            <span className="font-head text-lg font-black text-ci-blue">{m.lifetime_points.toLocaleString()}</span>
+            <span className="font-head text-lg font-black text-ci-blue">{hidePts ? "•••" : m.lifetime_points.toLocaleString()}</span>
           </div>
         ))}
       </div>
