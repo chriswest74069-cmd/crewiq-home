@@ -9,7 +9,7 @@ import { StatCard, SectionCard, EmptyState } from "@/components/crew/Widgets";
 import { MOTIVATION } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Star, Flame, Trophy, Target, Rocket, ChevronRight, Megaphone, ScrollText } from "lucide-react";
+import { Star, Flame, Trophy, Target, Rocket, ChevronRight, Megaphone, ScrollText, CalendarDays } from "lucide-react";
 
 export default function UserDashboard() {
   const { user } = useAuth();
@@ -17,11 +17,14 @@ export default function UserDashboard() {
   const { data } = useQuery({ queryKey: ["dashboard-user"], queryFn: async () => (await api.get("/dashboard/user")).data });
   const { data: anns = [] } = useQuery({ queryKey: ["announcements"], queryFn: async () => (await api.get("/announcements")).data });
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: async () => (await api.get("/settings")).data });
+  const { data: events = [] } = useQuery({ queryKey: ["events"], queryFn: async () => (await api.get("/events")).data });
   const motivation = useMemo(() => MOTIVATION[Math.floor(Math.random() * MOTIVATION.length)], []);
 
   if (!data) return null;
   const lbEnabled = settings ? settings.leaderboards_enabled : true;
   const hidePts = settings ? settings.hide_point_totals : false;
+  const today = new Date().toISOString().slice(0, 10);
+  const upcomingEvents = events.filter((e) => e.date >= today).slice(0, 3);
 
   return (
     <div className="space-y-6">
@@ -98,6 +101,22 @@ export default function UserDashboard() {
                   <p className="font-bold text-ci-navy">{anns[0].title}</p>
                   <p className="mt-0.5 text-sm text-slate-500">{anns[0].body}</p>
                 </div>
+              </div>
+            </SectionCard>
+          )}
+          {upcomingEvents.length > 0 && (
+            <SectionCard title="Upcoming Events">
+              <div className="space-y-2">
+                {upcomingEvents.map((e) => (
+                  <div key={e.id} className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-pink-100 text-pink-600"><CalendarDays className="h-5 w-5" /></span>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-ci-navy">{e.title}</p>
+                      <p className="text-[11px] font-bold text-slate-400">{new Date(e.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {e.type}</p>
+                    </div>
+                    {e.bonus_points_day && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">2×</span>}
+                  </div>
+                ))}
               </div>
             </SectionCard>
           )}

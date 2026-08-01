@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   LayoutDashboard, Users, ClipboardList, MapPin, Send, CheckSquare, Repeat,
   MessageSquare, Gift, Settings, Bell, LogOut, Target, Trophy, Award, Menu, ShieldCheck, ScrollText,
-  Zap, BarChart3, ShieldAlert,
+  Zap, BarChart3, ShieldAlert, UsersRound, CalendarDays, Medal as BadgeIcon,
 } from "lucide-react";
 
 const ADMIN_NAV = [
@@ -22,7 +22,10 @@ const ADMIN_NAV = [
   { to: "/admin/areas", label: "Rooms & Areas", icon: MapPin, color: "cyan" },
   { to: "/admin/assignments", label: "Assignments", icon: Send, color: "pink" },
   { to: "/admin/transfers", label: "Transfers", icon: Repeat, color: "fuchsia" },
+  { to: "/admin/team-missions", label: "Team Missions", icon: UsersRound, color: "cyan" },
   { to: "/admin/challenges", label: "Challenges", icon: Zap, color: "lime" },
+  { to: "/admin/badges", label: "Badge Creator", icon: BadgeIcon, color: "amber" },
+  { to: "/admin/calendar", label: "Calendar", icon: CalendarDays, color: "pink" },
   { to: "/admin/rules", label: "House Rules", icon: ScrollText, color: "rose" },
   { to: "/admin/messages", label: "Messages", icon: MessageSquare, color: "teal" },
   { to: "/admin/rewards", label: "Rewards Center", icon: Gift, color: "orange" },
@@ -34,9 +37,11 @@ const ADMIN_NAV = [
 const USER_NAV = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true, color: "blue" },
   { to: "/app/missions", label: "My Missions", icon: Target, color: "emerald" },
+  { to: "/app/team-missions", label: "Team Missions", icon: UsersRound, color: "cyan" },
   { to: "/app/challenges", label: "Challenges", icon: Zap, color: "lime" },
   { to: "/app/achievements", label: "Achievements", icon: Award, color: "amber" },
   { to: "/app/leaderboard", label: "Leaderboard", icon: Trophy, color: "fuchsia" },
+  { to: "/app/calendar", label: "Calendar", icon: CalendarDays, color: "pink" },
   { to: "/app/rules", label: "House Rules", icon: ScrollText, color: "rose" },
   { to: "/app/rewards", label: "Rewards", icon: Gift, color: "orange" },
   { to: "/app/messages", label: "Messages", icon: MessageSquare, color: "teal" },

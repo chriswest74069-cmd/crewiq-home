@@ -10,6 +10,16 @@ export const LEVELS = [
 
 export const DIFFICULTIES = ["Easy", "Medium", "Hard", "Epic"];
 export const CHALLENGE_TYPES = ["Daily", "Weekly", "Monthly", "Seasonal"];
+
+export const BADGE_TIERS = {
+  Common: { cls: "from-slate-400 to-slate-500", ring: "border-slate-200", text: "text-slate-600 bg-slate-100" },
+  Rare: { cls: "from-sky-400 to-blue-500", ring: "border-sky-200", text: "text-sky-700 bg-sky-100" },
+  Epic: { cls: "from-violet-400 to-fuchsia-500", ring: "border-violet-200", text: "text-violet-700 bg-violet-100" },
+  Legendary: { cls: "from-amber-400 to-yellow-500", ring: "border-amber-200", text: "text-amber-700 bg-amber-100" },
+};
+export const BADGE_TIER_LIST = ["Common", "Rare", "Epic", "Legendary"];
+export const BADGE_ICONS = ["award", "crown", "sparkles", "star", "trophy", "medal", "shield", "flame", "hand-heart", "zap"];
+export const EVENT_TYPES = ["Family Event", "Birthday", "Sports", "School Event", "Mission Day", "Bonus Point Day", "Seasonal Event"];
 export const FREQUENCIES = ["Daily", "Weekly", "Bi-Weekly", "Monthly", "Seasonal", "One Time"];
 export const AGE_GROUPS = ["5-8", "9-12", "13-17", "18+"];
 export const HOUSEHOLD_ROLES = ["Child", "Teen", "Adult"];

@@ -563,6 +563,162 @@ class TestPowerActions:
         s.delete(f"{API}/users/{uid}", headers=admin_h)
 
 
+# ---------- badges ----------
+class TestBadges:
+    def test_seed_badges(self, s, admin_h):
+        r = s.get(f"{API}/badges", headers=admin_h)
+        assert r.status_code == 200
+        assert len(r.json()) >= 3
+
+    def test_badge_create_award_and_no_double(self, s, admin_h, members):
+        payload = {"name": "TEST_Sparkle Badge", "description": "shiny",
+                   "tier": "Rare", "icon": "star", "point_reward": 7, "xp_reward": 0}
+        r = s.post(f"{API}/badges", json=payload, headers=admin_h)
+        assert r.status_code == 200, r.text
+        bid = r.json()["id"]
+        assert r.json()["tier"] == "Rare"
+
+        uid = members["Avery"]["id"]
+        before = next(u["points_balance"] for u in s.get(f"{API}/users", headers=admin_h).json() if u["id"] == uid)
+        r = s.post(f"{API}/badges/{bid}/award", json={"user_id": uid}, headers=admin_h)
+        assert r.status_code == 200, r.text
+        after = next(u["points_balance"] for u in s.get(f"{API}/users", headers=admin_h).json() if u["id"] == uid)
+        assert after - before == 7
+
+        # award_count reflected
+        blist = s.get(f"{API}/badges", headers=admin_h).json()
+        this = next(b for b in blist if b["id"] == bid)
+        assert this.get("award_count", 0) >= 1
+
+        # my-badges as Avery
+        tok, _ = _member_login(s, members, "Avery", "4321")
+        my = s.get(f"{API}/my-badges", headers={"Authorization": f"Bearer {tok}"}).json()
+        assert any(b["id"] == bid for b in my)
+
+        # double-award blocked
+        r = s.post(f"{API}/badges/{bid}/award", json={"user_id": uid}, headers=admin_h)
+        assert r.status_code == 400
+
+        # cleanup
+        s.delete(f"{API}/badges/{bid}", headers=admin_h)
+
+    def test_badge_create_requires_admin(self, s, members):
+        tok, _ = _member_login(s, members, "Willow", "5678")
+        r = s.post(f"{API}/badges", json={"name": "nope", "tier": "Common"},
+                   headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 403
+
+
+# ---------- events ----------
+class TestEvents:
+    def test_seed_events(self, s, admin_h):
+        r = s.get(f"{API}/events", headers=admin_h)
+        assert r.status_code == 200
+        assert len(r.json()) >= 3
+
+    def test_event_crud(self, s, admin_h, members):
+        payload = {"title": "TEST_Birthday", "type": "Birthday", "date": "2030-06-15",
+                   "description": "party", "bonus_points_day": True}
+        r = s.post(f"{API}/events", json=payload, headers=admin_h)
+        assert r.status_code == 200, r.text
+        eid = r.json()["id"]
+        assert r.json()["bonus_points_day"] is True
+
+        # members can view
+        tok, _ = _member_login(s, members, "Willow", "5678")
+        evs = s.get(f"{API}/events", headers={"Authorization": f"Bearer {tok}"}).json()
+        assert any(e["id"] == eid for e in evs)
+
+        # member cannot create/delete
+        r = s.post(f"{API}/events", json=payload, headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 403
+        r = s.delete(f"{API}/events/{eid}", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 403
+
+        # admin delete
+        r = s.delete(f"{API}/events/{eid}", headers=admin_h)
+        assert r.status_code == 200
+        evs2 = s.get(f"{API}/events", headers=admin_h).json()
+        assert not any(e["id"] == eid for e in evs2)
+
+
+# ---------- team missions ----------
+class TestTeamMissions:
+    def test_seed_team_mission_exists(self, s, admin_h):
+        r = s.get(f"{API}/team-missions", headers=admin_h)
+        assert r.status_code == 200
+        assert len(r.json()) >= 1
+
+    def test_team_mission_requires_two(self, s, admin_h, members):
+        r = s.post(f"{API}/team-missions",
+                   json={"title": "TEST_Solo", "points_reward": 20,
+                         "participant_ids": [members["Willow"]["id"]]}, headers=admin_h)
+        assert r.status_code == 400
+
+    def test_team_mission_full_flow(self, s, admin_h, members):
+        parts = [members["Garralt"]["id"], members["Willow"]["id"], members["Avery"]["id"]]
+        r = s.post(f"{API}/team-missions",
+                   json={"title": "TEST_Yard Cleanup", "description": "d", "area": "Outside",
+                         "points_reward": 90, "participant_ids": parts}, headers=admin_h)
+        assert r.status_code == 200, r.text
+        tid = r.json()["id"]
+
+        # participants only see it via list
+        tok_g, _ = _member_login(s, members, "Garralt", "1234")
+        gm = s.get(f"{API}/team-missions", headers={"Authorization": f"Bearer {tok_g}"}).json()
+        assert any(t["id"] == tid for t in gm)
+
+        # each participant contributes
+        pre_balances = {}
+        for name, pin in [("Garralt", "1234"), ("Willow", "5678"), ("Avery", "4321")]:
+            tok, u = _member_login(s, members, name, pin)
+            h = {"Authorization": f"Bearer {tok}"}
+            pre_balances[u["id"]] = s.get(f"{API}/auth/me", headers=h).json()["points_balance"]
+            r = s.post(f"{API}/team-missions/{tid}/contribute", headers=h)
+            assert r.status_code == 200
+
+        # after all done, status should be pending_approval
+        tlist = s.get(f"{API}/team-missions", headers=admin_h).json()
+        this = next(t for t in tlist if t["id"] == tid)
+        assert this["status"] == "pending_approval"
+
+        # non-participant cannot contribute
+        # (admin isn't a participant, but admin uses admin token which endpoint requires get_current_user;
+        #  create scenario: after status changed, contribute should also fail because not active)
+        # approve splits points
+        r = s.post(f"{API}/team-missions/{tid}/approve", headers=admin_h)
+        assert r.status_code == 200, r.text
+        share = r.json()["share"]
+        assert share == 90 // 3  # 30
+
+        for name, pin in [("Garralt", "1234"), ("Willow", "5678"), ("Avery", "4321")]:
+            tok, u = _member_login(s, members, name, pin)
+            h = {"Authorization": f"Bearer {tok}"}
+            post_bal = s.get(f"{API}/auth/me", headers=h).json()["points_balance"]
+            assert post_bal - pre_balances[u["id"]] == share
+
+        # status completed
+        tlist2 = s.get(f"{API}/team-missions", headers=admin_h).json()
+        this2 = next(t for t in tlist2 if t["id"] == tid)
+        assert this2["status"] == "completed"
+
+        # further contribute rejected (not active)
+        tok_g, _ = _member_login(s, members, "Garralt", "1234")
+        r = s.post(f"{API}/team-missions/{tid}/contribute",
+                   headers={"Authorization": f"Bearer {tok_g}"})
+        assert r.status_code == 400
+
+        # cleanup
+        s.delete(f"{API}/team-missions/{tid}", headers=admin_h)
+
+    def test_team_mission_admin_only_create(self, s, members):
+        tok, _ = _member_login(s, members, "Willow", "5678")
+        r = s.post(f"{API}/team-missions",
+                   json={"title": "TEST_x", "points_reward": 10, "participant_ids": []},
+                   headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 403
+
+
 class TestLeaderboardSettings:
     def test_leaderboard_toggles_persist(self, s, admin_h):
         r = s.put(f"{API}/settings",

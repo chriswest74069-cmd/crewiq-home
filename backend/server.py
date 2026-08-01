@@ -293,6 +293,32 @@ class ChallengeCreate(BaseModel):
     active: bool = True
 
 
+class BadgeCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    tier: str = "Common"
+    icon: str = "award"
+    point_reward: int = 0
+    xp_reward: int = 0
+
+
+class EventCreate(BaseModel):
+    title: str
+    type: str = "Family Event"
+    date: str
+    description: Optional[str] = ""
+    bonus_points_day: bool = False
+
+
+class TeamMissionCreate(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    area: Optional[str] = ""
+    points_reward: int = 100
+    teamwork_badge: Optional[str] = "Teamwork"
+    participant_ids: List[str]
+
+
 class RuleCreate(BaseModel):
     title: str
     body: str
@@ -1222,6 +1248,156 @@ async def security_logs(admin: dict = Depends(require_admin)):
     }
 
 
+# ---------------- badges (custom) ----------------
+@api.get("/badges")
+async def get_badges(user: dict = Depends(get_current_user)):
+    badges = await db.badges.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for b in badges:
+        b["award_count"] = await db.badge_awards.count_documents({"badge_id": b["id"]})
+    return badges
+
+
+@api.get("/my-badges")
+async def my_badges(user: dict = Depends(get_current_user)):
+    awards = await db.badge_awards.find({"user_id": user["id"]}, {"_id": 0}).to_list(200)
+    ids = [a["badge_id"] for a in awards]
+    badges = await db.badges.find({"id": {"$in": ids}}, {"_id": 0}).to_list(200)
+    return badges
+
+
+@api.post("/badges")
+async def create_badge(data: BadgeCreate, admin: dict = Depends(require_admin)):
+    doc = {"id": new_id(), **data.model_dump(), "created_at": now_iso()}
+    await db.badges.insert_one(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.delete("/badges/{bid}")
+async def delete_badge(bid: str, admin: dict = Depends(require_admin)):
+    await db.badges.delete_one({"id": bid})
+    await db.badge_awards.delete_many({"badge_id": bid})
+    return {"ok": True}
+
+
+@api.post("/badges/{bid}/award")
+async def award_badge(bid: str, payload: dict, admin: dict = Depends(require_admin)):
+    b = await db.badges.find_one({"id": bid})
+    if not b:
+        raise HTTPException(404, "Badge not found")
+    uid = payload.get("user_id")
+    u = await db.users.find_one({"id": uid, "role": "member"})
+    if not u:
+        raise HTTPException(404, "Member not found")
+    existing = await db.badge_awards.find_one({"badge_id": bid, "user_id": uid})
+    if existing:
+        raise HTTPException(400, f"{u['first_name']} already has this badge")
+    await db.badge_awards.insert_one({"id": new_id(), "badge_id": bid, "user_id": uid, "awarded_at": now_iso()})
+    pts = b.get("point_reward", 0)
+    if pts:
+        await db.users.update_one({"id": uid}, {"$inc": {"points_balance": pts, "lifetime_points": pts}})
+        await recompute_user(uid)
+    await notify(uid, "New Badge Earned!", f"{b['name']} ({b['tier']})" + (f" +{pts} points" if pts else ""), "achievement")
+    await log_activity("badge", f"Awarded '{b['name']}' to {u['first_name']}", uid)
+    return {"ok": True}
+
+
+# ---------------- family calendar ----------------
+@api.get("/events")
+async def get_events(user: dict = Depends(get_current_user)):
+    return await db.events.find({}, {"_id": 0}).sort("date", 1).to_list(300)
+
+
+@api.post("/events")
+async def create_event(data: EventCreate, admin: dict = Depends(require_admin)):
+    doc = {"id": new_id(), **data.model_dump(), "created_at": now_iso()}
+    await db.events.insert_one(doc)
+    members = await db.users.find({"role": "member"}).to_list(200)
+    for m in members:
+        await notify(m["id"], "New Family Event", f"{data.title} · {data.date}", "event")
+    await log_activity("event", f"Event scheduled: {data.title} ({data.date})")
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.delete("/events/{eid}")
+async def delete_event(eid: str, admin: dict = Depends(require_admin)):
+    await db.events.delete_one({"id": eid})
+    return {"ok": True}
+
+
+# ---------------- team missions ----------------
+async def team_mission_view(t: dict):
+    parts = []
+    for uid in t.get("participant_ids", []):
+        u = await db.users.find_one({"id": uid}, {"_id": 0, "first_name": 1, "avatar": 1})
+        parts.append({"id": uid, "first_name": u["first_name"] if u else "?", "avatar": u.get("avatar", "") if u else "", "done": t.get("progress", {}).get(uid, False)})
+    t["participants"] = parts
+    return t
+
+
+@api.get("/team-missions")
+async def get_team_missions(user: dict = Depends(get_current_user)):
+    q = {} if user["role"] == "admin" else {"participant_ids": user["id"]}
+    items = await db.team_missions.find(q, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for t in items:
+        await team_mission_view(t)
+    return items
+
+
+@api.post("/team-missions")
+async def create_team_mission(data: TeamMissionCreate, admin: dict = Depends(require_admin)):
+    if len(data.participant_ids) < 2:
+        raise HTTPException(400, "Pick at least two crew members for a team mission")
+    doc = {"id": new_id(), **data.model_dump(), "progress": {uid: False for uid in data.participant_ids},
+           "status": "active", "created_at": now_iso()}
+    await db.team_missions.insert_one(doc)
+    for uid in data.participant_ids:
+        await notify(uid, "New Team Mission!", data.title, "team")
+    await log_activity("team", f"Team mission created: {data.title}")
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.post("/team-missions/{tid}/contribute")
+async def contribute_team_mission(tid: str, user: dict = Depends(get_current_user)):
+    t = await db.team_missions.find_one({"id": tid})
+    if not t or user["id"] not in t.get("participant_ids", []):
+        raise HTTPException(404, "Not found")
+    if t["status"] != "active":
+        raise HTTPException(400, "This team mission is no longer active")
+    progress = t.get("progress", {})
+    progress[user["id"]] = True
+    update = {"progress": progress}
+    if all(progress.get(uid) for uid in t["participant_ids"]):
+        update["status"] = "pending_approval"
+        admins = await db.users.find({"role": "admin"}).to_list(10)
+        for adm in admins:
+            await notify(adm["id"], "Team Mission Ready", f"'{t['title']}' needs approval", "team")
+    await db.team_missions.update_one({"id": tid}, {"$set": update})
+    return {"ok": True, "all_done": update.get("status") == "pending_approval"}
+
+
+@api.post("/team-missions/{tid}/approve")
+async def approve_team_mission(tid: str, admin: dict = Depends(require_admin)):
+    t = await db.team_missions.find_one({"id": tid})
+    if not t:
+        raise HTTPException(404, "Not found")
+    parts = t["participant_ids"]
+    share = t.get("points_reward", 0) // max(1, len(parts))
+    for uid in parts:
+        await db.users.update_one({"id": uid}, {"$inc": {"points_balance": share, "lifetime_points": share}})
+        await recompute_user(uid)
+        await check_achievements(uid)
+        await notify(uid, "Team Mission Complete!", f"'{t['title']}' +{share} points · {t.get('teamwork_badge', 'Teamwork')} badge!", "team")
+    await db.team_missions.update_one({"id": tid}, {"$set": {"status": "completed", "completed_at": now_iso()}})
+    await log_activity("team", f"Team mission approved: {t['title']} (+{share} each)")
+    return {"ok": True, "share": share}
+
+
+@api.delete("/team-missions/{tid}")
+async def delete_team_mission(tid: str, admin: dict = Depends(require_admin)):
+    await db.team_missions.delete_one({"id": tid})
+    return {"ok": True}
+
+
 # ---------------- settings ----------------
 @api.get("/settings")
 async def read_settings(user: dict = Depends(get_current_user)):
@@ -1339,6 +1515,36 @@ async def seed():
         ]
         for c in ch_seed:
             await db.challenges.insert_one({"id": new_id(), **c, "expires_at": None, "active": True, "created_at": now_iso()})
+    # demo badges (independent, seed once)
+    if await db.badges.count_documents({}) == 0:
+        badge_seed = [
+            {"name": "Helping Hand", "description": "Awarded for going above and beyond for the family.", "tier": "Common", "icon": "hand-heart", "point_reward": 25, "xp_reward": 25},
+            {"name": "Clean Machine", "description": "For spotless, consistent cleaning work.", "tier": "Rare", "icon": "sparkles", "point_reward": 50, "xp_reward": 50},
+            {"name": "Household Legend", "description": "The highest honor in the household.", "tier": "Legendary", "icon": "crown", "point_reward": 150, "xp_reward": 150},
+        ]
+        for b in badge_seed:
+            await db.badges.insert_one({"id": new_id(), **b, "created_at": now_iso()})
+    # demo events (independent, seed once)
+    if await db.events.count_documents({}) == 0:
+        from datetime import date
+        today = date.today()
+        ev_seed = [
+            {"title": "Family Movie Night", "type": "Family Event", "date": (today + timedelta(days=2)).isoformat(), "description": "Popcorn and a film everyone votes on.", "bonus_points_day": False},
+            {"title": "Double Points Saturday", "type": "Bonus Point Day", "date": (today + timedelta(days=5)).isoformat(), "description": "Every approved mission earns double points!", "bonus_points_day": True},
+            {"title": "Willow's Birthday", "type": "Birthday", "date": (today + timedelta(days=12)).isoformat(), "description": "Celebrate Willow!", "bonus_points_day": False},
+        ]
+        for e in ev_seed:
+            await db.events.insert_one({"id": new_id(), **e, "created_at": now_iso()})
+    # demo team mission (independent, seed once)
+    if await db.team_missions.count_documents({}) == 0:
+        mem = await db.users.find({"role": "member"}, {"_id": 0, "id": 1}).to_list(10)
+        if len(mem) >= 2:
+            pids = [m["id"] for m in mem[:3]]
+            await db.team_missions.insert_one({
+                "id": new_id(), "title": "Clean the Garage", "description": "Team up to sort, sweep and organize the whole garage.",
+                "area": "Garage", "points_reward": 120, "teamwork_badge": "Teamwork Titan",
+                "participant_ids": pids, "progress": {p: False for p in pids}, "status": "active", "created_at": now_iso(),
+            })
     # admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_pw = os.environ["ADMIN_PASSWORD"]

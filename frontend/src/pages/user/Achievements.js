@@ -2,20 +2,39 @@ import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { BadgeMedal, TierPill } from "@/components/crew/BadgeMedal";
 import { Rocket, Target, Flame, Crown, Zap, Sparkles, Utensils, Trees, Star, Trophy, Lock } from "lucide-react";
 
 const ICONS = { rocket: Rocket, target: Target, flame: Flame, crown: Crown, zap: Zap, sparkles: Sparkles, utensils: Utensils, trees: Trees, star: Star, trophy: Trophy };
 
 export default function Achievements() {
   const { data: list = [] } = useQuery({ queryKey: ["achievements"], queryFn: async () => (await api.get("/achievements")).data });
+  const { data: myBadges = [] } = useQuery({ queryKey: ["my-badges"], queryFn: async () => (await api.get("/my-badges")).data });
   const earned = list.filter((a) => a.earned).length;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-head text-3xl font-black text-ci-navy">Achievements</h1>
-        <p className="text-slate-500">You've unlocked <span className="font-bold text-ci-blue">{earned}</span> of {list.length} badges. Keep going!</p>
+        <p className="text-slate-500">You've unlocked <span className="font-bold text-ci-blue">{earned}</span> of {list.length} badges{myBadges.length ? ` + ${myBadges.length} custom` : ""}. Keep going!</p>
       </div>
+
+      {myBadges.length > 0 && (
+        <div>
+          <h3 className="mb-3 font-head font-bold text-ci-navy">Special Badges from your Admin</h3>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {myBadges.map((b, i) => (
+              <div key={b.id} data-testid={`my-badge-${b.id}`} className="animate-pop-in flex flex-col items-center rounded-2xl border border-amber-200 bg-white p-5 text-center card-shadow" style={{ animationDelay: `${i * 50}ms` }}>
+                <BadgeMedal badge={b} />
+                <p className="mt-3 font-head text-sm font-bold text-ci-navy">{b.name}</p>
+                <div className="mt-1"><TierPill tier={b.tier} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <h3 className="font-head font-bold text-ci-navy">Milestone Achievements</h3>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {list.map((a, i) => {
           const Icon = ICONS[a.icon] || Trophy;

@@ -20,6 +20,9 @@ import RulesCenter from "@/pages/admin/RulesCenter";
 import ChallengesCenter from "@/pages/admin/ChallengesCenter";
 import Reports from "@/pages/admin/Reports";
 import Security from "@/pages/admin/Security";
+import BadgeManager from "@/pages/admin/BadgeManager";
+import Calendar from "@/pages/shared/Calendar";
+import TeamMissions from "@/pages/shared/TeamMissions";
 import AdminMessages from "@/pages/admin/AdminMessages";
 import AdminRewards from "@/pages/admin/AdminRewards";
 import SettingsPage from "@/pages/admin/SettingsPage";
@@ -78,7 +81,10 @@ function AdminRoutes() {
           <Route path="areas" element={<Areas />} />
           <Route path="assignments" element={<Assignments />} />
           <Route path="transfers" element={<AdminTransfers />} />
+          <Route path="team-missions" element={<TeamMissions />} />
           <Route path="challenges" element={<ChallengesCenter />} />
+          <Route path="badges" element={<BadgeManager />} />
+          <Route path="calendar" element={<Calendar />} />
           <Route path="rules" element={<RulesCenter />} />
           <Route path="messages" element={<AdminMessages />} />
           <Route path="rewards" element={<AdminRewards />} />
@@ -99,9 +105,11 @@ function UserRoutes() {
         <Routes>
           <Route index element={<UserDashboard />} />
           <Route path="missions" element={<Missions />} />
+          <Route path="team-missions" element={<TeamMissions />} />
           <Route path="challenges" element={<UserChallenges />} />
           <Route path="achievements" element={<Achievements />} />
           <Route path="leaderboard" element={<Leaderboard />} />
+          <Route path="calendar" element={<Calendar />} />
           <Route path="rewards" element={<UserRewards />} />
           <Route path="rules" element={<UserRules />} />
           <Route path="messages" element={<UserMessages />} />
