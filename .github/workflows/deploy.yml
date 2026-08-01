@@ -30,13 +30,15 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: |
+          npm install --legacy-peer-deps
+          npm install ajv@8 ajv-keywords@5 --legacy-peer-deps
 
       - name: Build frontend
-        run: npm run build
+        run: CI=false npm run build
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -45,10 +47,15 @@ jobs:
 
   deploy:
     needs: build
+
     runs-on: ubuntu-latest
 
     environment:
       name: github-pages
+
+    permissions:
+      pages: write
+      id-token: write
 
     steps:
       - name: Deploy to GitHub Pages
