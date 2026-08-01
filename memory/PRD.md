@@ -40,6 +40,24 @@ Profiles, Areas, Chore Library, Assignments (mission cards), Approvals, Points (
 - Message attachments (photo proof), redemption approval management, mini-games engine.
 
 ## Next Tasks
-1. Household Rules Center (well-specified, self-contained).
-2. Streak expansion + Daily Challenges (high gamification value).
-3. Advanced leaderboards with timeframes/categories.
+See "Deferred (next rounds)" below.
+
+## Implemented — Update 2 (2026-06)
+- **Visual refresh**: multi-colored sidebar (per-item accent), subtle neon wallpaper gradients across the app shell, glass topbar.
+- **Household Rules Center**: admin create/edit/pin/archive/delete rules by 8 categories, require-acknowledgement toggle, versioning (edit bumps version → re-ack), "Who read it" tracking (accepted vs pending). Member view + tap-to-acknowledge; dashboard nudge for unacknowledged rules.
+- **Admin Settings Center**: General settings (household name, motto, timezone, theme accent), Chore Transfer rules, Leaderboard settings (enable/disable + hide point totals — enforced on member views), link cards to all admin hubs.
+- **Challenge System**: admin CRUD (Daily/Weekly/Monthly/Seasonal, difficulty, points/XP/badge rewards, active toggle); member claim (awards points, one-time, achievement re-check). 3 demo challenges seeded.
+- **Reports & Analytics**: recharts dashboards (missions completed bar, point growth line, lifetime ranking, redemptions pie) + KPI stat cards.
+- **Security & Audit Center**: tabs for Activity, Login History (success/failed recorded), Point Logs, Rule Logs, Redemptions.
+- **User power actions**: reset onboarding / reset streak / reset all progress / disable+enable account (disabled members blocked at login AND mid-session, hidden from PIN screen).
+- Verified: 37/37 backend tests pass; all frontend admin-expansion + regression flows pass.
+
+## Deferred (next rounds — from Update 2 Admin Expansion)
+- Badge Management (admin badge creator: tiers Common/Rare/Epic/Legendary, icon, XP/point reward, hidden/seasonal) + manual badge assignment.
+- Achievement Management (admin-defined automatic/manual/secret/event achievements with custom requirements).
+- Household Economy / Crew Coins (multi-currency, multipliers, bonus/holiday events, penalties, transaction history).
+- Family Calendar (events, birthdays, mission/bonus days, auto reminders).
+- Roles & Permissions matrix (Owner/Parent/Guardian/Teen Leader/Standard/Guest + per-permission grid).
+- Notification preferences (per-event toggles), scheduled/pinned announcements, scheduled rules.
+- Chore settings depth (auto-assignment, photo verification, escalation timers, late penalties, per-difficulty time limits) + Chore Escalation flow (Late/Overdue/Alert).
+- Team Missions (multi-member collaborative chores), Streak rewards config (7/30/90/365 + grace/protection) & longest-streak tracking, advanced leaderboards (daily/weekly/monthly timeframes + categories), Data export (PDF/CSV), customizable dashboard widgets, Bulk actions (assign badges/points/rewards/messages).

@@ -156,6 +156,8 @@ async def get_current_user(request: Request) -> dict:
     user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if user.get("disabled") and user.get("role") == "member":
+        raise HTTPException(status_code=403, detail="This account has been disabled by your administrator")
     return user
 
 
